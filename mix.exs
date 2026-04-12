@@ -9,6 +9,7 @@ defmodule Hangout.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       listeners: [Phoenix.CodeReloader],
+      aliases: aliases(),
       deps: deps()
     ]
   end
@@ -23,6 +24,15 @@ defmodule Hangout.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp aliases do
+    [
+      setup: ["deps.get", "assets.setup", "assets.build"],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["esbuild hangout"],
+      "assets.deploy": ["esbuild hangout --minify", "phx.digest"]
+    ]
+  end
+
   defp deps do
     [
       {:phoenix, "~> 1.7"},
@@ -33,6 +43,7 @@ defmodule Hangout.MixProject do
       {:jason, "~> 1.4"},
       {:bandit, "~> 1.0"},
       {:heroicons, "~> 0.5"},
+      {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
       {:lazy_html, ">= 0.1.0", only: :test}
     ]

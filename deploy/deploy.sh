@@ -10,6 +10,8 @@
 # - Don't use cache_static_manifest unless you run mix phx.digest (we don't use asset pipeline).
 # - Erlang from rabbitmq PPA is faster than building from source via asdf/kerl.
 # - Secret key base goes in systemd unit Environment= line, not a dotenv file.
+# - LiveView JS (app.js) must be built with esbuild into priv/static/assets/ or phx-submit won't work.
+# - Without app.js, forms fall back to plain HTML GET — no WebSocket, no LiveView.
 set -e
 
 echo "==> Pulling latest..."
@@ -20,6 +22,10 @@ export MIX_ENV=prod
 mix local.hex --force --if-missing
 mix local.rebar --force --if-missing
 mix deps.get --only prod
+
+echo "==> Building assets..."
+mix assets.setup
+mix assets.deploy
 
 echo "==> Compiling..."
 mix compile
