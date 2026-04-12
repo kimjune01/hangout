@@ -379,7 +379,7 @@ defmodule HangoutWeb.RoomLive do
                     <% :privmsg -> %>
                       <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
                       <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
-                        <span class="md-body">{Hangout.Markdown.render(msg.body)}</span>
+                        <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
                         <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown">copy</button>
                       <% else %>
                         {msg.body}

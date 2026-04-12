@@ -74,6 +74,8 @@ defmodule Hangout.IRC.Parser do
   Truncates to 512 bytes including CRLF.
   """
   def line(prefix, command, params \\ []) do
+    params = Enum.map(params, &sanitize_param/1)
+
     body =
       [maybe_prefix(prefix), command | encode_params(params)]
       |> Enum.reject(&(&1 in [nil, ""]))
@@ -81,6 +83,12 @@ defmodule Hangout.IRC.Parser do
 
     truncate(body <> "\r\n")
   end
+
+  defp sanitize_param(param) when is_binary(param) do
+    String.replace(param, ~r/[\r\n\0]/, " ")
+  end
+
+  defp sanitize_param(param), do: param
 
   # --- Convenience formatters ---
 
