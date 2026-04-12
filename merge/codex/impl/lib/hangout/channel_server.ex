@@ -1,0 +1,482 @@
+defmodule Hangout.ChannelServer do
+  @moduledoc "One ephemeral IRC-compatible room process."
+  use GenServer, restart: :temporary
+
+  alias Hangout.{ChannelRegistry, Message, Participant, RateLimiter}
+
+  defstruct name: nil,
+            slug: nil,
+            members: %{},
+            buffer: [],
+            created_at: nil,
+            expires_at: nil,
+            creator_public_key: nil,
+            mod_capability_hash: nil,
+            topic: nil,
+            modes: %{i: false, m: false, t: true, l: nil},
+            human_count: 0,
+            bot_count: 0,
+            next_message_id: 1,
+            ttl_ref: nil
+
+  def start_link(opts) do
+    name = Keyword.fetch!(opts, :name)
+    GenServer.start_link(__MODULE__, opts, name: ChannelRegistry.via(name))
+  end
+
+  def join(name, %Participant{} = participant, opts \\ []) do
+    with {:ok, pid} <- ChannelRegistry.ensure_started(name, opts) do
+      case GenServer.call(pid, {:join, participant, opts}) do
+        {:error, reason} = error when reason in [:bot_needs_human, :bad_channel] ->
+          GenServer.cast(pid, :stop_if_empty)
+          error
+
+        other ->
+          other
+      end
+    end
+  end
+
+  def part(name, nick, reason \\ "leaving"), do: call(name, {:part, nick, reason})
+  def quit(name, nick, reason \\ "quit"), do: part(name, nick, reason)
+  def message(name, nick, kind, body), do: call(name, {:message, nick, kind, body})
+  def change_nick(name, old, new), do: call(name, {:nick, old, new})
+  def topic(name), do: call(name, :topic)
+  def set_topic(name, nick, topic, token \\ nil), do: call(name, {:set_topic, nick, topic, token})
+  def names(name), do: call(name, :names)
+  def snapshot(name), do: call(name, :snapshot)
+  def modauth(name, nick, token), do: call(name, {:modauth, nick, token})
+  def kick(name, actor, target, reason, token \\ nil), do: call(name, {:kick, actor, target, reason, token})
+  def mode(name, actor, op, mode, arg \\ nil, token \\ nil), do: call(name, {:mode, actor, op, mode, arg, token})
+  def clear(name, actor, token \\ nil), do: call(name, {:clear, actor, token})
+  def end_room(name, actor, token \\ nil), do: call(name, {:end_room, actor, token})
+  def set_ttl(name, actor, seconds, token \\ nil), do: call(name, {:ttl, actor, seconds, token})
+  def validate_mod(name, token), do: call(name, {:validate_mod, token})
+
+  @impl true
+  def init(opts) do
+    name = ChannelRegistry.canonical!(Keyword.fetch!(opts, :name))
+    created_at = DateTime.utc_now()
+    ttl = Keyword.get(opts, :ttl, Application.get_env(:hangout, :default_ttl))
+    {expires_at, ttl_ref} = schedule_ttl(created_at, ttl)
+
+    {:ok,
+     %__MODULE__{
+       name: name,
+       slug: ChannelRegistry.slug(name),
+       created_at: created_at,
+       expires_at: expires_at,
+       creator_public_key: Keyword.get(opts, :creator_public_key),
+       ttl_ref: ttl_ref
+     }}
+  end
+
+  @impl true
+  def handle_call({:join, %Participant{} = participant, opts}, _from, state) do
+    participant = normalize_participant(participant)
+    first_human? = state.human_count == 0 and Participant.human?(participant)
+
+    cond do
+      !ChannelRegistry.valid?(state.name) ->
+        {:reply, {:error, :bad_channel}, state}
+
+      participant.bot? and state.human_count == 0 and map_size(state.members) == 0 ->
+        {:reply, {:error, :bot_needs_human}, state}
+
+      state.modes[:i] and not authorized?(state, participant.nick, Keyword.get(opts, :mod_token)) ->
+        {:reply, {:error, :invite_only}, state}
+
+      map_size(state.members) >= max_members(state) and !Map.has_key?(state.members, participant.nick) ->
+        {:reply, {:error, :channel_full}, state}
+
+      true ->
+        participant =
+          if first_human? do
+            %{participant | modes: MapSet.put(participant.modes, :o)}
+          else
+            participant
+          end
+
+        {state, token} =
+          if first_human? do
+            # Only the hash remains in room state; the raw token is returned once.
+            token = random_token()
+            {%{state | mod_capability_hash: hash_token(token)}, token}
+          else
+            {state, nil}
+          end
+
+        state =
+          if first_human? and is_binary(participant.public_key) do
+            %{state | creator_public_key: participant.public_key}
+          else
+            state
+          end
+
+        state =
+          state
+          |> put_member(participant.nick, participant)
+          |> refresh_counts()
+
+        event = {:user_joined, state.name, public_participant(participant)}
+        broadcast(state, event)
+
+        {:reply, {:ok, snapshot(state), token}, state}
+    end
+  end
+
+  def handle_call({:part, nick, reason}, _from, state) do
+    case Map.pop(state.members, nick) do
+      {nil, _} ->
+        {:reply, {:error, :not_on_channel}, state}
+
+      {participant, members} ->
+        state = %{state | members: members} |> refresh_counts()
+        event = {:user_parted, state.name, public_participant(participant), reason}
+        broadcast(state, event)
+        deliver_to(participant, event)
+        maybe_stop_if_empty({:reply, :ok, state}, "Room closed: everyone left")
+    end
+  end
+
+  def handle_call({:message, nick, kind, body}, _from, state) do
+    with {:member, %Participant{} = participant} <- {:member, state.members[nick]},
+         :ok <- can_send?(state, participant),
+         :ok <- valid_body?(body),
+         {true, limiter} <- RateLimiter.allow?(participant.rate_limit_state) do
+      participant = %{participant | rate_limit_state: limiter, last_seen_at: DateTime.utc_now()}
+      msg = build_message(state, nick, kind, body)
+
+      state =
+        state
+        |> put_member(nick, participant)
+        |> append_buffer(msg)
+
+      broadcast(state, {:message, state.name, msg})
+      {:reply, {:ok, msg}, state}
+    else
+      {:member, nil} -> {:reply, {:error, :not_on_channel}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      {false, limiter} ->
+        participant = %{state.members[nick] | rate_limit_state: limiter}
+        state = put_member(state, nick, participant)
+        {:reply, {:error, :rate_limited}, state}
+    end
+  end
+
+  def handle_call({:nick, old, new}, _from, state) do
+    case Map.pop(state.members, old) do
+      {nil, _} ->
+        {:reply, {:error, :not_on_channel}, state}
+
+      {participant, members} ->
+        participant = %{participant | nick: new, last_seen_at: DateTime.utc_now()}
+        state = %{state | members: Map.put(members, new, participant)}
+        broadcast(state, {:nick_changed, state.name, old, new})
+        {:reply, :ok, state}
+    end
+  end
+
+  def handle_call(:topic, _from, state), do: {:reply, {:ok, state.topic}, state}
+  def handle_call(:names, _from, state), do: {:reply, {:ok, Map.values(state.members) |> Enum.map(&public_participant/1)}, state}
+  def handle_call(:snapshot, _from, state), do: {:reply, {:ok, snapshot(state)}, state}
+
+  def handle_call({:set_topic, nick, topic, token}, _from, state) do
+    if authorized?(state, nick, token) or !state.modes[:t] do
+      state = %{state | topic: topic}
+      broadcast(state, {:topic_changed, state.name, nick, topic})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:modauth, nick, token}, _from, state) do
+    if valid_token?(state, token) and state.members[nick] do
+      state = update_member_modes(state, nick, &MapSet.put(&1, :o))
+      broadcast(state, {:modes_changed, state.name, state.modes, public_modes(state)})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:kick, actor, target, reason, token}, _from, state) do
+    if authorized?(state, actor, token) do
+      case Map.pop(state.members, target) do
+        {nil, _} ->
+          {:reply, {:error, :not_on_channel}, state}
+
+        {participant, members} ->
+          state = %{state | members: members} |> refresh_counts()
+          event = {:user_kicked, state.name, actor, public_participant(participant), reason || "kicked"}
+          broadcast(state, event)
+          deliver_to(participant, event)
+          maybe_stop_if_empty({:reply, :ok, state}, "Room closed: everyone left")
+      end
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:mode, actor, op, mode, arg, token}, _from, state) do
+    if authorized?(state, actor, token) do
+      case apply_mode(state, op, mode, arg) do
+        {:ok, state} ->
+          broadcast(state, {:modes_changed, state.name, state.modes, public_modes(state)})
+          {:reply, :ok, state}
+
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
+      end
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:clear, actor, token}, _from, state) do
+    if authorized?(state, actor, token) do
+      state = %{state | buffer: []}
+      broadcast(state, {:buffer_cleared, state.name, actor})
+      broadcast(state, {:notice, state.name, "hangout", "scrollback cleared"})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:end_room, actor, token}, _from, state) do
+    if authorized?(state, actor, token) do
+      broadcast(state, {:room_ended, state.name, actor})
+      {:stop, :normal, :ok, state}
+    else
+      {:reply, {:error, :not_operator}, state}
+    end
+  end
+
+  def handle_call({:ttl, actor, seconds, token}, _from, state) do
+    cond do
+      !authorized?(state, actor, token) ->
+        {:reply, {:error, :not_operator}, state}
+
+      seconds <= 0 or seconds > max_ttl() ->
+        {:reply, {:error, :bad_ttl}, state}
+
+      true ->
+        if state.ttl_ref, do: Process.cancel_timer(state.ttl_ref)
+        expires_at = DateTime.add(state.created_at, seconds, :second)
+        ms = max(DateTime.diff(expires_at, DateTime.utc_now(), :millisecond), 0)
+        ref = Process.send_after(self(), :ttl_expired, ms)
+        state = %{state | expires_at: expires_at, ttl_ref: ref}
+        broadcast(state, {:ttl_changed, state.name, expires_at})
+        {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:validate_mod, token}, _from, state), do: {:reply, valid_token?(state, token), state}
+
+  @impl true
+  def handle_cast(:stop_if_empty, state) do
+    if map_size(state.members) == 0, do: {:stop, :normal, state}, else: {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:ttl_expired, state) do
+    broadcast(state, {:notice, state.name, "hangout", "Room expired"})
+    broadcast(state, {:room_expired, state.name})
+    {:stop, :normal, state}
+  end
+
+  def handle_info(_, state), do: {:noreply, state}
+
+  defp call(name, message) do
+    with {:ok, pid} <- ChannelRegistry.lookup(name) do
+      GenServer.call(pid, message)
+    else
+      :error -> {:error, :no_such_channel}
+    end
+  end
+
+  defp normalize_participant(%Participant{} = participant) do
+    now = DateTime.utc_now()
+
+    %{
+      participant
+      | joined_at: participant.joined_at || now,
+        last_seen_at: participant.last_seen_at || now,
+        rate_limit_state: participant.rate_limit_state || RateLimiter.new()
+    }
+  end
+
+  defp valid_body?(body) when is_binary(body) do
+    if byte_size(body) <= Application.get_env(:hangout, :message_body_max_bytes, 400) do
+      :ok
+    else
+      {:error, :body_too_long}
+    end
+  end
+
+  defp can_send?(state, participant) do
+    cond do
+      !state.modes[:m] -> :ok
+      MapSet.member?(participant.modes, :o) or MapSet.member?(participant.modes, :v) -> :ok
+      true -> {:error, :moderated}
+    end
+  end
+
+  defp build_message(state, nick, kind, body) do
+    %Message{id: state.next_message_id, at: DateTime.utc_now(), from: nick, target: state.name, kind: kind, body: body}
+  end
+
+  defp append_buffer(state, msg) do
+    max = Application.get_env(:hangout, :max_buffer_size, 100)
+    %{state | buffer: Enum.take(state.buffer ++ [msg], -max), next_message_id: state.next_message_id + 1}
+  end
+
+  defp refresh_counts(state) do
+    {humans, bots} =
+      state.members
+      |> Map.values()
+      |> Enum.reduce({0, 0}, fn
+        %Participant{bot?: true}, {h, b} -> {h, b + 1}
+        %Participant{}, {h, b} -> {h + 1, b}
+      end)
+
+    %{state | human_count: humans, bot_count: bots}
+  end
+
+  defp maybe_stop_if_empty({:reply, reply, state}, notice) do
+    if state.human_count == 0 do
+      broadcast(state, {:notice, state.name, "hangout", notice})
+      {:stop, :normal, reply, state}
+    else
+      {:reply, reply, state}
+    end
+  end
+
+  defp apply_mode(state, op, mode, arg) when mode in [:i, :m, :t] do
+    {:ok, put_mode(state, mode, op == "+")}
+  end
+
+  defp apply_mode(state, "+", mode, nick) when mode in [:o, :v] and is_binary(nick) do
+    if state.members[nick] do
+      {:ok, update_member_modes(state, nick, &MapSet.put(&1, mode))}
+    else
+      {:error, :not_on_channel}
+    end
+  end
+
+  defp apply_mode(state, "-", mode, nick) when mode in [:o, :v] and is_binary(nick) do
+    if state.members[nick] do
+      {:ok, update_member_modes(state, nick, &MapSet.delete(&1, mode))}
+    else
+      {:error, :not_on_channel}
+    end
+  end
+
+  defp apply_mode(state, "+", :l, limit) do
+    case Integer.parse(to_string(limit || "")) do
+      {n, ""} when n > 0 -> {:ok, put_mode(state, :l, n)}
+      _ -> {:error, :bad_mode}
+    end
+  end
+
+  defp apply_mode(state, "-", :l, _), do: {:ok, put_mode(state, :l, nil)}
+  defp apply_mode(_state, _op, _mode, _arg), do: {:error, :bad_mode}
+
+  defp authorized?(state, nick, token) do
+    valid_token?(state, token) or
+      case state.members[nick] do
+        %Participant{modes: modes} -> MapSet.member?(modes, :o)
+        _ -> false
+      end
+  end
+
+  defp valid_token?(_state, nil), do: false
+  defp valid_token?(_state, ""), do: false
+  defp valid_token?(%{mod_capability_hash: nil}, _token), do: false
+  defp valid_token?(state, token), do: secure_equal?(state.mod_capability_hash, hash_token(token))
+
+  defp secure_equal?(a, b) when byte_size(a) == byte_size(b) do
+    :crypto.hash_equals(a, b)
+  rescue
+    UndefinedFunctionError -> a == b
+  end
+
+  defp secure_equal?(_, _), do: false
+
+  defp hash_token(token), do: :crypto.hash(:sha256, to_string(token))
+  defp random_token, do: :crypto.strong_rand_bytes(Application.get_env(:hangout, :capability_token_bytes, 16)) |> Base.encode16(case: :lower)
+
+  defp schedule_ttl(_created_at, nil), do: {nil, nil}
+
+  defp schedule_ttl(created_at, seconds) when is_integer(seconds) and seconds > 0 do
+    seconds = min(seconds, max_ttl())
+    expires_at = DateTime.add(created_at, seconds, :second)
+    {expires_at, Process.send_after(self(), :ttl_expired, seconds * 1000)}
+  end
+
+  defp schedule_ttl(_, _), do: {nil, nil}
+
+  defp max_ttl, do: Application.get_env(:hangout, :max_ttl, 86_400)
+
+  defp max_members(state) do
+    state.modes[:l] || Application.get_env(:hangout, :max_members_per_channel, 200)
+  end
+
+  defp snapshot(state) do
+    %{
+      name: state.name,
+      slug: state.slug,
+      members: state.members |> Map.values() |> Enum.map(&public_participant/1),
+      buffer: state.buffer,
+      created_at: state.created_at,
+      expires_at: state.expires_at,
+      topic: state.topic,
+      modes: state.modes,
+      human_count: state.human_count,
+      bot_count: state.bot_count
+    }
+  end
+
+  defp put_member(state, nick, participant), do: %{state | members: Map.put(state.members, nick, participant)}
+
+  defp update_member_modes(state, nick, fun) do
+    participant = %{state.members[nick] | modes: fun.(state.members[nick].modes)}
+    put_member(state, nick, participant)
+  end
+
+  defp put_mode(state, mode, value), do: %{state | modes: Map.put(state.modes, mode, value)}
+
+  defp public_modes(state) do
+    Map.new(state.members, fn {nick, participant} -> {nick, MapSet.to_list(participant.modes)} end)
+  end
+
+  defp public_participant(%Participant{} = participant) do
+    %{
+      nick: participant.nick,
+      user: participant.user,
+      realname: participant.realname,
+      public_key: participant.public_key,
+      transport: participant.transport,
+      bot?: participant.bot?,
+      joined_at: participant.joined_at,
+      last_seen_at: participant.last_seen_at,
+      modes: MapSet.to_list(participant.modes)
+    }
+  end
+
+  defp broadcast(state, event) do
+    Phoenix.PubSub.broadcast(Hangout.PubSub, topic_name(state.name), {:hangout_event, event})
+
+    state.members
+    |> Map.values()
+    |> Enum.filter(&(&1.transport == :irc))
+    |> Enum.each(fn participant -> send(participant.pid, {:hangout_event, event}) end)
+  end
+
+  defp deliver_to(%Participant{transport: :irc, pid: pid}, event), do: send(pid, {:hangout_event, event})
+  defp deliver_to(_participant, _event), do: :ok
+
+  def topic_name(channel_name), do: "channel:" <> channel_name
+end

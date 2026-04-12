@@ -269,7 +269,7 @@ defmodule Hangout.IRC.Connection do
         {:noreply, state}
 
       state.nick == nil ->
-        case NickRegistry.register(nick, self()) do
+        case NickRegistry.register(nick, %{transport: :irc, pid: self()}) do
           :ok ->
             state = %{state | nick: nick}
             maybe_complete_registration(state)
@@ -280,7 +280,7 @@ defmodule Hangout.IRC.Connection do
         end
 
       true ->
-        case NickRegistry.change(state.nick, nick, self()) do
+        case NickRegistry.change(state.nick, nick, %{transport: :irc, pid: self()}) do
           :ok ->
             old_nick = state.nick
             state = %{state | nick: nick}
@@ -375,7 +375,7 @@ defmodule Hangout.IRC.Connection do
                   )
 
                 case ChannelServer.join(channel_name, participant) do
-                  {:ok, info} ->
+                  {:ok, info, token} ->
                     Phoenix.PubSub.subscribe(Hangout.PubSub, "channel:#{channel_name}")
 
                     # JOIN confirmation
@@ -398,14 +398,14 @@ defmodule Hangout.IRC.Connection do
                     # Scrollback
                     send_scrollback(acc, channel_name, info.buffer)
 
-                    # Creator notice
-                    if length(info.members) == 1 do
+                    # Creator notice with capability token
+                    if token do
                       send_line(
                         acc,
                         Parser.server_msg(
                           "NOTICE",
-                          channel_name,
-                          "You are the room creator. Use MODAUTH <token> to claim moderation."
+                          state.nick,
+                          "You are the room creator. Moderator token: #{token}"
                         )
                       )
                     end
@@ -875,11 +875,8 @@ defmodule Hangout.IRC.Connection do
 
   defp send_scrollback(_state, _channel_name, _buffer), do: :ok
 
-  defp format_names(channel_name, member_nicks) do
-    case ChannelServer.names(channel_name) do
-      {:ok, members} -> format_names_from_members(members)
-      _ -> member_nicks
-    end
+  defp format_names(_channel_name, members) when is_list(members) do
+    format_names_from_members(members)
   end
 
   defp format_names_from_members(members) do

@@ -165,7 +165,7 @@ defmodule Hangout.ChannelServer do
     with {:member, %Participant{} = participant} <- {:member, state.members[nick]},
          :ok <- can_send?(state, participant),
          :ok <- validate_body(body),
-         {true, limiter} <- RateLimiter.check(participant.rate_limit_state) do
+         {:ok, limiter} <- RateLimiter.check(participant.rate_limit_state) do
       participant = %{participant | rate_limit_state: limiter, last_seen_at: DateTime.utc_now()}
       msg = build_message(state, nick, kind, body)
 
@@ -179,10 +179,6 @@ defmodule Hangout.ChannelServer do
     else
       {:member, nil} -> {:reply, {:error, :not_on_channel}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
-      {false, limiter} ->
-        participant = %{state.members[nick] | rate_limit_state: limiter}
-        state = put_member(state, nick, participant)
-        {:reply, {:error, :rate_limited}, state}
     end
   end
 
