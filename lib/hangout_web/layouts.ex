@@ -27,20 +27,22 @@ defmodule HangoutWeb.Layouts do
             --success: #7cc7b2;
             --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            --btn-text: var(--bg);
           }
 
           [data-theme="light"] {
             --bg: #f5f3ef;
             --panel: #ffffff;
             --panel-2: #eae7e1;
-            --border: #d4cfc7;
+            --border: #c4bfb7;
             --text: #1a1918;
-            --muted: #6b6560;
-            --dim: #8c857d;
-            --accent: #2a8f7a;
-            --accent-2: #b8860b;
-            --danger: #d32f2f;
-            --success: #2a8f7a;
+            --muted: #5a554f;
+            --dim: #6e6860;
+            --accent: #1f7a67;
+            --accent-2: #8a6508;
+            --danger: #c62828;
+            --success: #1f7a67;
+            --btn-text: #ffffff;
           }
 
           *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -241,7 +243,7 @@ defmodule HangoutWeb.Layouts do
           }
           .mod-controls button:hover { background: var(--border); color: var(--text); }
           .mod-controls button.danger { border-color: var(--danger); color: var(--danger); }
-          .mod-controls button.danger:hover { background: var(--danger); color: var(--bg); }
+          .mod-controls button.danger:hover { background: var(--danger); color: var(--btn-text); }
 
           /* --- Nick prompt --- */
           .nick-prompt { text-align: center; padding: 6rem 1rem 4rem; }
@@ -269,7 +271,7 @@ defmodule HangoutWeb.Layouts do
           .nick-prompt input::placeholder { color: var(--dim); }
           .nick-prompt button {
             background: var(--accent);
-            color: var(--bg);
+            color: var(--btn-text);
             border: none;
             padding: 0.6rem 2rem;
             border-radius: 4px;
@@ -323,7 +325,7 @@ defmodule HangoutWeb.Layouts do
           }
           .home-form button {
             background: var(--accent);
-            color: var(--bg);
+            color: var(--btn-text);
             border: none;
             padding: 0.6rem 2rem;
             border-radius: 4px;
