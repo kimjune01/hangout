@@ -64,6 +64,7 @@ defmodule Hangout.ChannelServer do
   def validate_mod(name, token), do: call(name, {:validate_mod, token})
   def who(name), do: call(name, :who)
   def whois(name, nick), do: call(name, {:whois, nick})
+  def mark_bot(name, nick), do: call(name, {:mark_bot, nick})
 
   def topic_name(channel_name), do: "channel:" <> channel_name
 
@@ -164,7 +165,7 @@ defmodule Hangout.ChannelServer do
     with {:member, %Participant{} = participant} <- {:member, state.members[nick]},
          :ok <- can_send?(state, participant),
          :ok <- validate_body(body),
-         {true, limiter} <- RateLimiter.allow?(participant.rate_limit_state) do
+         {true, limiter} <- RateLimiter.check(participant.rate_limit_state) do
       participant = %{participant | rate_limit_state: limiter, last_seen_at: DateTime.utc_now()}
       msg = build_message(state, nick, kind, body)
 
@@ -298,6 +299,27 @@ defmodule Hangout.ChannelServer do
         state = %{state | expires_at: expires_at, ttl_ref: ref}
         broadcast(state, {:ttl_changed, state.name, expires_at})
         {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:mark_bot, nick}, _from, state) do
+    case Map.fetch(state.members, nick) do
+      {:ok, participant} ->
+        participant = %{participant | bot?: true}
+        was_human = !participant.bot?
+        human_count = if was_human, do: state.human_count - 1, else: state.human_count
+        bot_count = state.bot_count + 1
+        state = %{state | members: Map.put(state.members, nick, participant), human_count: human_count, bot_count: bot_count}
+
+        if human_count == 0 do
+          broadcast(state, {:room_ended, state.name, "No humans remain"})
+          {:stop, :normal, :ok, state}
+        else
+          {:reply, :ok, state}
+        end
+
+      :error ->
+        {:reply, {:error, :not_on_channel}, state}
     end
   end
 

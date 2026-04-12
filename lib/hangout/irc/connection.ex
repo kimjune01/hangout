@@ -42,6 +42,7 @@ defmodule Hangout.IRC.Connection do
 
   # --- GenServer init (called via proc_lib) ---
 
+  @impl true
   def init({ref, transport, _opts}) do
     {:ok, socket} = :ranch.handshake(ref)
     transport.setopts(socket, active: :once, packet: :raw, buffer: 16_384)
@@ -479,7 +480,7 @@ defmodule Hangout.IRC.Connection do
         else
           case Parser.parse_ctcp_action(body) do
             {:action, text} ->
-              case ChannelServer.send_action(channel_name, state.nick, text) do
+              case ChannelServer.message(channel_name, state.nick, :action, text) do
                 {:ok, _msg} ->
                   :ok
 
@@ -494,7 +495,7 @@ defmodule Hangout.IRC.Connection do
               end
 
             :not_action ->
-              case ChannelServer.send_message(channel_name, state.nick, body) do
+              case ChannelServer.message(channel_name, state.nick, :privmsg, body) do
                 {:ok, _msg} ->
                   :ok
 
@@ -516,11 +517,11 @@ defmodule Hangout.IRC.Connection do
         end
 
       true ->
-        case ChannelServer.private_message(state.nick, target, body) do
-          :ok ->
-            :ok
+        case NickRegistry.pid(target) do
+          {:ok, pid} ->
+            send(pid, {:private_message, state.nick, target, body})
 
-          {:error, :no_such_nick} ->
+          :error ->
             send_line(state, Parser.numeric(401, state.nick, [target, "No such nick/channel"]))
         end
 
@@ -538,7 +539,7 @@ defmodule Hangout.IRC.Connection do
       channel_name = normalize_channel(target)
 
       if MapSet.member?(state.channels, channel_name) do
-        ChannelServer.send_notice(channel_name, state.nick, body)
+        ChannelServer.message(channel_name, state.nick, :notice, body)
       end
     end
 
@@ -549,7 +550,7 @@ defmodule Hangout.IRC.Connection do
   defp dispatch("TOPIC", [channel_name], state) do
     channel_name = normalize_channel(channel_name)
 
-    case ChannelServer.get_topic(channel_name) do
+    case ChannelServer.topic(channel_name) do
       {:ok, nil} ->
         send_line(state, Parser.numeric(331, state.nick, [channel_name, "No topic is set"]))
 
@@ -618,7 +619,7 @@ defmodule Hangout.IRC.Connection do
   defp dispatch("NAMES", [channel_name | _], state) do
     channel_name = normalize_channel(channel_name)
 
-    case ChannelServer.get_members(channel_name) do
+    case ChannelServer.names(channel_name) do
       {:ok, members} ->
         nicks = format_names_from_members(members)
         send_line(state, Parser.names_reply(state.nick, channel_name, nicks))
@@ -725,7 +726,7 @@ defmodule Hangout.IRC.Connection do
     results =
       Enum.map(state.channels, fn channel ->
         try do
-          ChannelServer.mod_auth(channel, state.nick, token)
+          ChannelServer.modauth(channel, state.nick, token)
         catch
           :exit, _ -> {:error, :no_channel}
         end
@@ -772,7 +773,7 @@ defmodule Hangout.IRC.Connection do
   defp dispatch("END", [channel_name], state) do
     channel_name = normalize_channel(channel_name)
 
-    case ChannelServer.end_channel(channel_name, state.nick) do
+    case ChannelServer.end_room(channel_name, state.nick) do
       :ok ->
         :ok
 
@@ -793,7 +794,7 @@ defmodule Hangout.IRC.Connection do
   defp dispatch("CLEAR", [channel_name], state) do
     channel_name = normalize_channel(channel_name)
 
-    case ChannelServer.clear_buffer(channel_name, state.nick) do
+    case ChannelServer.clear(channel_name, state.nick) do
       :ok ->
         :ok
 
@@ -875,24 +876,24 @@ defmodule Hangout.IRC.Connection do
   defp send_scrollback(_state, _channel_name, _buffer), do: :ok
 
   defp format_names(channel_name, member_nicks) do
-    case ChannelServer.get_members(channel_name) do
+    case ChannelServer.names(channel_name) do
       {:ok, members} -> format_names_from_members(members)
       _ -> member_nicks
     end
   end
 
   defp format_names_from_members(members) do
-    Enum.map(members, fn {nick, participant} ->
+    Enum.map(members, fn member ->
       cond do
-        Participant.operator?(participant) -> "@#{nick}"
-        Participant.voiced?(participant) -> "+#{nick}"
-        true -> nick
+        :o in member.modes -> "@#{member.nick}"
+        :v in member.modes -> "+#{member.nick}"
+        true -> member.nick
       end
     end)
   end
 
   defp handle_channel_mode(channel_name, [], state) do
-    case ChannelServer.get_state(channel_name) do
+    case ChannelServer.snapshot(channel_name) do
       {:ok, ch_state} ->
         mode_str =
           ch_state.modes
@@ -931,7 +932,7 @@ defmodule Hangout.IRC.Connection do
         target_nick = List.first(rest)
 
         if target_nick do
-          case ChannelServer.set_user_mode(channel_name, state.nick, target_nick, mode_atom, adding) do
+          case ChannelServer.mode(channel_name, state.nick, (if adding, do: "+", else: "-"), mode_atom, target_nick) do
             :ok ->
               :ok
 
@@ -946,7 +947,7 @@ defmodule Hangout.IRC.Connection do
         end
 
       true ->
-        case ChannelServer.set_mode(channel_name, state.nick, mode_atom, adding) do
+        case ChannelServer.mode(channel_name, state.nick, (if adding, do: "+", else: "-"), mode_atom) do
           :ok ->
             :ok
 

@@ -1,7 +1,7 @@
 defmodule HangoutWeb.RoomLive do
   use HangoutWeb, :live_view
 
-  alias Hangout.{ChannelServer, ChannelRegistry, NickRegistry, Participant}
+  alias Hangout.{ChannelServer, NickRegistry, Participant}
 
   @adjectives ~w(quiet green bright calm swift bold dark warm cool soft)
   @nouns ~w(fox lamp river cloud storm wind leaf spark wave flame)
@@ -414,7 +414,7 @@ defmodule HangoutWeb.RoomLive do
             {:error, reason, socket}
         end
 
-      {:error, :in_use} ->
+      {:error, :nick_in_use} ->
         {:error, :nick_in_use, socket}
     end
   end
