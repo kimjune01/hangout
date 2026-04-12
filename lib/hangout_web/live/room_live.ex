@@ -345,7 +345,7 @@ defmodule HangoutWeb.RoomLive do
 
             <div class="input-bar">
               <span class="nick-label">{@nick}</span>
-              <form phx-submit="send_message" style="display: flex; flex: 1;">
+              <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
                 <input
                   type="text"
                   name="body"
@@ -354,7 +354,6 @@ defmodule HangoutWeb.RoomLive do
                   autofocus
                   maxlength="400"
                   id="message-input"
-                  phx-hook="Notifications"
                 />
                 <button type="submit">Send</button>
               </form>

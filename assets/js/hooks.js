@@ -301,4 +301,39 @@ const TTLCountdown = {
   },
 };
 
-export const Hooks = { Scroll, Notifications, Identity, TTLCountdown };
+// --- MessageForm Hook ---
+// Clears input on submit. Also handles notification events (moved from Notifications
+// hook since this is the primary interactive element on the page).
+
+const MessageForm = {
+  mounted() {
+    this.notificationsEnabled = false;
+
+    // Clear input on submit
+    this.el.addEventListener("submit", () => {
+      const input = this.el.querySelector("input[name=body]");
+      if (input) {
+        requestAnimationFrame(() => { input.value = ""; });
+      }
+    });
+
+    // Notification events
+    this.handleEvent("hangout:ask_notifications", () => {
+      if (!("Notification" in window)) return;
+      if (Notification.permission === "granted") { this.notificationsEnabled = true; return; }
+      if (Notification.permission === "denied") return;
+      Notifications.showBanner.call(this);
+    });
+
+    this.handleEvent("hangout:message", (payload) => {
+      if (!this.notificationsEnabled || !document.hidden) return;
+      if (Notification.permission !== "granted") return;
+      const title = payload.channel ? `#${payload.channel}` : "Hangout";
+      const body = `${payload.from || "someone"}: ${(payload.body || "").slice(0, 100)}`;
+      const n = new Notification(title, { body, tag: title });
+      n.onclick = () => window.focus();
+    });
+  },
+};
+
+export const Hooks = { Scroll, Notifications, MessageForm, Identity, TTLCountdown };
