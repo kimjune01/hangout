@@ -87,8 +87,10 @@ defmodule HangoutWeb.RoomLive do
 
       true ->
         case join_channel(socket, nick) do
-          {:ok, socket} -> {:noreply, socket}
-          {:error, reason, socket} -> {:noreply, put_flash(socket, :error, human_error(reason))}
+          {:ok, socket} ->
+            {:noreply, push_event(socket, "hangout:nick_set", %{nick: socket.assigns.nick})}
+          {:error, reason, socket} ->
+            {:noreply, put_flash(socket, :error, human_error(reason))}
         end
     end
   end
@@ -215,6 +217,20 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, confirm_end?: false)}
   end
 
+  def handle_event("reset_nick", _params, socket) do
+    if socket.assigns.joined? do
+      ChannelServer.part(socket.assigns.channel_name, socket.assigns.nick, "changing name")
+      NickRegistry.unregister(socket.assigns.nick)
+    end
+
+    socket =
+      socket
+      |> assign(joined?: false, nick: nil, participants: [], messages: [])
+      |> push_event("hangout:nick_clear", %{})
+
+    {:noreply, socket}
+  end
+
   def handle_event("toggle_members", _params, socket) do
     {:noreply, assign(socket, mobile_members_open?: not socket.assigns.mobile_members_open?)}
   end
@@ -260,8 +276,23 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, notifications_enabled?: false)}
   end
 
-  def handle_event("identity_ready", %{"publicKey" => pk}, socket) do
-    {:noreply, assign(socket, public_key: pk)}
+  def handle_event("identity_ready", params, socket) do
+    socket = assign(socket, public_key: params["publicKey"])
+
+    # Auto-join with saved nick if available and not already joined
+    case {params["savedNick"], socket.assigns.joined?} do
+      {nick, false} when is_binary(nick) and nick != "" ->
+        case join_channel(socket, nick) do
+          {:ok, socket} ->
+            {:noreply, push_event(socket, "hangout:nick_set", %{nick: socket.assigns.nick})}
+          {:error, _reason, socket} ->
+            # Saved nick failed (in use, invalid) — show the prompt
+            {:noreply, socket}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   # --- PubSub + direct messages ---
@@ -428,7 +459,7 @@ defmodule HangoutWeb.RoomLive do
                   <button class="voice-btn" phx-click="voice_join" title="Join voice">mic</button>
                 <% end %>
               <% end %>
-              <span class="nick-label">{@nick}</span>
+              <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
               <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
                 <input
                   type="text"

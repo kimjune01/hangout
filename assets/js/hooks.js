@@ -183,9 +183,22 @@ const Identity = {
     const keyPair = await loadOrCreateKeyPair();
     const publicKey = JSON.stringify(keyPair.jwk.publicKey);
 
+    const savedNick = localStorage.getItem("hangout_nick");
+
     this.pushEvent("identity_ready", {
       publicKey,
       fingerprint: publicKeyFingerprint(keyPair.jwk.publicKey),
+      savedNick: savedNick,
+    });
+
+    // Save nick when we join
+    this.handleEvent("hangout:nick_set", ({ nick }) => {
+      localStorage.setItem("hangout_nick", nick);
+    });
+
+    // Clear nick on reset
+    this.handleEvent("hangout:nick_clear", () => {
+      localStorage.removeItem("hangout_nick");
     });
 
     // Server-initiated events
