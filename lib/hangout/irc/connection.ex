@@ -94,117 +94,10 @@ defmodule Hangout.IRC.Connection do
   end
 
   # --- PubSub messages from ChannelServer ---
+  # ChannelServer broadcasts {:hangout_event, event} — unwrap and dispatch.
 
-  def handle_info({:new_message, msg}, state) do
-    if msg.from != state.nick do
-      case msg.kind do
-        :privmsg ->
-          send_line(state, Parser.user_msg(msg.from, msg.from, "PRIVMSG", msg.target, msg.body))
-
-        :notice ->
-          send_line(state, Parser.user_msg(msg.from, msg.from, "NOTICE", msg.target, msg.body))
-
-        :action ->
-          body = "\x01ACTION #{msg.body}\x01"
-          send_line(state, Parser.user_msg(msg.from, msg.from, "PRIVMSG", msg.target, body))
-
-        :system ->
-          send_line(state, Parser.server_msg("NOTICE", msg.target, msg.body))
-      end
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info({:user_joined, nick, channel}, state) do
-    if nick != state.nick do
-      send_line(state, Parser.user_cmd(nick, nick, "JOIN", channel))
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info({:user_parted, nick, channel, message}, state) do
-    if nick != state.nick do
-      msg = if message, do: " :#{message}", else: ""
-      send_line(state, Parser.user_cmd(nick, nick, "PART", "#{channel}#{msg}"))
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info({:user_quit, nick, _channel, message}, state) do
-    if nick != state.nick do
-      send_line(state, ":#{nick}!#{nick}@hangout QUIT :#{message}\r\n")
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info({:user_kicked, kicker, target, channel, reason}, state) do
-    send_line(state, ":#{kicker}!#{kicker}@hangout KICK #{channel} #{target} :#{reason}\r\n")
-
-    if target == state.nick do
-      state = %{state | channels: MapSet.delete(state.channels, channel)}
-      Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
-      {:noreply, state}
-    else
-      {:noreply, state}
-    end
-  end
-
-  def handle_info({:nick_changed, old_nick, new_nick, _channel}, state) do
-    if old_nick != state.nick do
-      send_line(state, ":#{old_nick}!#{old_nick}@hangout NICK :#{new_nick}\r\n")
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info({:topic_changed, nick, channel, topic}, state) do
-    send_line(state, ":#{nick}!#{nick}@hangout TOPIC #{channel} :#{topic}\r\n")
-    {:noreply, state}
-  end
-
-  def handle_info({:modes_changed, nick, channel, mode, value}, state) do
-    flag = if value, do: "+#{mode}", else: "-#{mode}"
-    send_line(state, ":#{nick}!#{nick}@hangout MODE #{channel} #{flag}\r\n")
-    {:noreply, state}
-  end
-
-  def handle_info({:user_mode_changed, setter, target, channel, mode, value}, state) do
-    flag = if value, do: "+#{mode}", else: "-#{mode}"
-    send_line(state, ":#{setter}!#{setter}@hangout MODE #{channel} #{flag} #{target}\r\n")
-    {:noreply, state}
-  end
-
-  def handle_info({:room_ended, channel, reason}, state) do
-    send_line(state, Parser.server_msg("NOTICE", channel, reason))
-    send_line(state, ":#{state.nick}!#{state.nick}@hangout PART #{channel} :#{reason}\r\n")
-    state = %{state | channels: MapSet.delete(state.channels, channel)}
-    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
-    {:noreply, state}
-  end
-
-  def handle_info({:room_expired, channel}, state) do
-    send_line(state, Parser.server_msg("NOTICE", channel, "Room expired"))
-    state = %{state | channels: MapSet.delete(state.channels, channel)}
-    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
-    {:noreply, state}
-  end
-
-  def handle_info({:buffer_cleared, _nick, channel}, state) do
-    send_line(state, Parser.server_msg("NOTICE", channel, "Scrollback cleared"))
-    {:noreply, state}
-  end
-
-  def handle_info({:ttl_set, _nick, channel, expires_at}, state) do
-    send_line(state, Parser.server_msg("NOTICE", channel, "Room TTL set, expires at #{DateTime.to_iso8601(expires_at)}"))
-    {:noreply, state}
-  end
-
-  def handle_info({:channel_created, _channel, _token}, state) do
-    {:noreply, state}
+  def handle_info({:hangout_event, event}, state) do
+    handle_channel_event(event, state)
   end
 
   def handle_info({:private_message, from_nick, _to_nick, body}, state) do
@@ -227,6 +120,106 @@ defmodule Hangout.IRC.Connection do
   def handle_info(_msg, state) do
     {:noreply, state}
   end
+
+  # --- Channel event dispatch (from PubSub {:hangout_event, event}) ---
+
+  defp handle_channel_event({:message, _channel, msg}, state) do
+    if msg.from != state.nick do
+      case msg.kind do
+        :privmsg ->
+          send_line(state, Parser.user_msg(msg.from, msg.from, "PRIVMSG", msg.target, msg.body))
+        :notice ->
+          send_line(state, Parser.user_msg(msg.from, msg.from, "NOTICE", msg.target, msg.body))
+        :action ->
+          body = "\x01ACTION #{msg.body}\x01"
+          send_line(state, Parser.user_msg(msg.from, msg.from, "PRIVMSG", msg.target, body))
+        :system ->
+          send_line(state, Parser.server_msg("NOTICE", msg.target, msg.body))
+      end
+    end
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:user_joined, channel, participant}, state) do
+    if participant.nick != state.nick do
+      send_line(state, Parser.user_cmd(participant.nick, participant.nick, "JOIN", channel))
+    end
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:user_parted, channel, participant, reason}, state) do
+    if participant.nick != state.nick do
+      msg = if reason, do: " :#{reason}", else: ""
+      send_line(state, Parser.user_cmd(participant.nick, participant.nick, "PART", "#{channel}#{msg}"))
+    end
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:user_kicked, channel, actor, participant, reason}, state) do
+    send_line(state, ":#{actor}!#{actor}@hangout KICK #{channel} #{participant.nick} :#{reason}\r\n")
+    if participant.nick == state.nick do
+      state = %{state | channels: MapSet.delete(state.channels, channel)}
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  defp handle_channel_event({:nick_changed, _channel, old_nick, new_nick}, state) do
+    if old_nick != state.nick do
+      send_line(state, ":#{old_nick}!#{old_nick}@hangout NICK :#{new_nick}\r\n")
+    end
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:topic_changed, channel, nick, topic}, state) do
+    send_line(state, ":#{nick}!#{nick}@hangout TOPIC #{channel} :#{topic}\r\n")
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:modes_changed, channel, _modes_map, _public_modes}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, "Channel modes changed"))
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:user_mode_changed, setter, target, channel, mode, value}, state) do
+    flag = if value, do: "+#{mode}", else: "-#{mode}"
+    send_line(state, ":#{setter}!#{setter}@hangout MODE #{channel} #{flag} #{target}\r\n")
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:room_ended, channel, reason}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, "Room ended: #{reason}"))
+    send_line(state, ":#{state.nick}!#{state.nick}@hangout PART #{channel} :#{reason}\r\n")
+    state = %{state | channels: MapSet.delete(state.channels, channel)}
+    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:room_expired, channel}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, "Room expired"))
+    state = %{state | channels: MapSet.delete(state.channels, channel)}
+    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:buffer_cleared, channel, _actor}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, "Scrollback cleared"))
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:ttl_changed, channel, expires_at}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, "Room TTL set, expires at #{DateTime.to_iso8601(expires_at)}"))
+    {:noreply, state}
+  end
+
+  defp handle_channel_event({:notice, channel, _from, text}, state) do
+    send_line(state, Parser.server_msg("NOTICE", channel, text))
+    {:noreply, state}
+  end
+
+  defp handle_channel_event(_event, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, state) do

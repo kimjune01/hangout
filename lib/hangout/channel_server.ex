@@ -586,11 +586,6 @@ defmodule Hangout.ChannelServer do
 
   defp broadcast(state, event) do
     Phoenix.PubSub.broadcast(Hangout.PubSub, topic_name(state.name), {:hangout_event, event})
-
-    state.members
-    |> Map.values()
-    |> Enum.filter(&(&1.transport == :irc))
-    |> Enum.each(fn p -> send(p.pid, {:hangout_event, event}) end)
   end
 
   defp deliver_to(%Participant{transport: :irc, pid: pid}, event) do
