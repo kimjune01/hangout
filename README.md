@@ -64,7 +64,7 @@ One GenServer per live room. `restart: :temporary` — when it stops, it's gone.
 
 ## Spec
 
-The full product and implementation spec is in [SPEC.md](SPEC.md) (1222 lines). It defines:
+The full product and implementation spec is in [docs/SPEC.md](docs/SPEC.md) (1222 lines). It defines:
 
 - Channel lifecycle (creation, alive, TTL, decay, destruction)
 - IRC wire protocol (23 supported commands + 4 custom)
