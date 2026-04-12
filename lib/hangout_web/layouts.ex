@@ -67,6 +67,34 @@ defmodule HangoutWeb.Layouts do
           .message.action { color: var(--accent); }
           .message.notice { color: var(--accent-2); }
 
+          /* --- Markdown in messages --- */
+          .md-body { display: inline; }
+          .md-body p { display: inline; margin: 0; }
+          .md-body p + p { display: block; margin-top: 0.25rem; }
+          .md-body code { font-family: var(--font-mono); background: var(--panel-2); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.875rem; }
+          .md-body pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem 0.75rem; margin: 0.25rem 0; overflow-x: auto; }
+          .md-body pre code { background: none; padding: 0; font-size: 0.8125rem; }
+          .md-body a { color: var(--accent); }
+          .md-body strong { color: var(--text); font-weight: 600; }
+          .md-body em { color: var(--muted); }
+          .md-body blockquote { border-left: 2px solid var(--border); padding-left: 0.5rem; color: var(--muted); margin: 0.25rem 0; }
+          .md-body ul, .md-body ol { margin: 0.25rem 0 0.25rem 1.5rem; }
+          .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { font-size: 1rem; font-weight: 600; margin: 0.25rem 0; }
+          .copy-md {
+            background: none;
+            border: none;
+            color: var(--dim);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            cursor: pointer;
+            padding: 0 0.25rem;
+            vertical-align: top;
+            opacity: 0;
+            transition: opacity 0.15s;
+          }
+          .message:hover .copy-md { opacity: 1; }
+          .copy-md:hover { color: var(--accent); }
+
           /* --- Member toggle + drawer (inside messages panel) --- */
           .member-toggle {
             position: absolute;
