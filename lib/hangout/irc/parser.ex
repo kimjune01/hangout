@@ -140,6 +140,65 @@ defmodule Hangout.IRC.Parser do
   @doc "Format a PING."
   def ping(token), do: "PING :#{token}\r\n"
 
+  # --- Event formatters (used by IRC connection for channel events) ---
+
+  def kick(actor, channel, target, reason) do
+    line(user_prefix(actor), "KICK", [channel, target, reason])
+  end
+
+  def nick_change(old_nick, new_nick) do
+    line(user_prefix(old_nick), "NICK", [new_nick])
+  end
+
+  def topic_change(nick, channel, topic) do
+    line(user_prefix(nick), "TOPIC", [channel, topic])
+  end
+
+  def mode_change(setter, channel, flag, target \\ nil) do
+    params = if target, do: [channel, flag, target], else: [channel, flag]
+    line(user_prefix(setter), "MODE", params)
+  end
+
+  def part(nick, channel, reason) do
+    line(user_prefix(nick), "PART", [channel, reason])
+  end
+
+  def quit(nick, message) do
+    line(user_prefix(nick), "QUIT", [message])
+  end
+
+  def who_reply(requester, channel, entry_user, entry_nick, prefix_char, realname) do
+    line("hangout", "352", [requester, channel, entry_user, "hangout", "hangout", entry_nick, "H#{prefix_char}", "0 #{realname}"])
+  end
+
+  def who_end(nick, channel) do
+    line("hangout", "315", [nick, channel, "End of WHO list"])
+  end
+
+  def whois_user(requester, nick, user, realname) do
+    line("hangout", "311", [requester, nick, user, "hangout", "*", realname])
+  end
+
+  def whois_channels(requester, nick, channels_str) do
+    line("hangout", "319", [requester, nick, channels_str])
+  end
+
+  def whois_end(requester, nick) do
+    line("hangout", "318", [requester, nick, "End of WHOIS list"])
+  end
+
+  def list_end(nick) do
+    line("hangout", "323", [nick, "End of LIST"])
+  end
+
+  def isupport(nick) do
+    line("hangout", "005", [nick, "CHANTYPES=#", "NICKLEN=16", "CHANNELLEN=48", "CHANMODES=o,v,m,i,t,l", "are supported by this server"])
+  end
+
+  def channel_modes(nick, channel, mode_str) do
+    line("hangout", "324", [nick, channel, "+#{mode_str}"])
+  end
+
   # --- Validation ---
 
   @doc "Validate a nick: 1-16 chars, starts with letter, alphanumeric plus IRC specials."

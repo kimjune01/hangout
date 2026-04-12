@@ -24,12 +24,15 @@ defmodule Hangout.IRC.Connection do
     :user,
     :realname,
     :peername,
+    :ip,
     :ping_timer,
     :ping_ref,
     registered?: false,
     bot?: false,
     channels: MapSet.new(),
-    buffer: ""
+    buffer: "",
+    join_limiter: nil,
+    nick_limiter: nil
   ]
 
   # --- Ranch Protocol ---
@@ -45,21 +48,31 @@ defmodule Hangout.IRC.Connection do
   @impl true
   def init({ref, transport, _opts}) do
     {:ok, socket} = :ranch.handshake(ref)
-    transport.setopts(socket, active: :once, packet: :raw, buffer: 16_384)
 
-    peername =
+    {ip, peername} =
       case transport.peername(socket) do
-        {:ok, {ip, port}} -> "#{:inet.ntoa(ip)}:#{port}"
-        _ -> "unknown"
+        {:ok, {ip, port}} -> {ip, "#{:inet.ntoa(ip)}:#{port}"}
+        _ -> {nil, "unknown"}
       end
 
-    state = %__MODULE__{
-      socket: socket,
-      transport: transport,
-      peername: peername
-    }
+    case Hangout.IPLimiter.admit(ip) do
+      :ok ->
+        transport.setopts(socket, active: :once, packet: :raw, buffer: 16_384)
 
-    :gen_server.enter_loop(__MODULE__, [], state)
+        state = %__MODULE__{
+          socket: socket,
+          transport: transport,
+          peername: peername,
+          ip: ip
+        }
+
+        :gen_server.enter_loop(__MODULE__, [], state)
+
+      {:error, :too_many_connections} ->
+        transport.send(socket, "ERROR :Too many connections from your IP\r\n")
+        transport.close(socket)
+        {:stop, :normal}
+    end
   end
 
   # --- Incoming TCP data ---
@@ -156,7 +169,7 @@ defmodule Hangout.IRC.Connection do
   end
 
   defp handle_channel_event({:user_kicked, channel, actor, participant, reason}, state) do
-    send_line(state, ":#{actor}!#{actor}@hangout KICK #{channel} #{participant.nick} :#{reason}\r\n")
+    send_line(state, Parser.kick(actor, channel, participant.nick, reason))
     if participant.nick == state.nick do
       state = %{state | channels: MapSet.delete(state.channels, channel)}
       Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
@@ -168,13 +181,13 @@ defmodule Hangout.IRC.Connection do
 
   defp handle_channel_event({:nick_changed, _channel, old_nick, new_nick}, state) do
     if old_nick != state.nick do
-      send_line(state, ":#{old_nick}!#{old_nick}@hangout NICK :#{new_nick}\r\n")
+      send_line(state, Parser.nick_change(old_nick, new_nick))
     end
     {:noreply, state}
   end
 
   defp handle_channel_event({:topic_changed, channel, nick, topic}, state) do
-    send_line(state, ":#{nick}!#{nick}@hangout TOPIC #{channel} :#{topic}\r\n")
+    send_line(state, Parser.topic_change(nick, channel, topic))
     {:noreply, state}
   end
 
@@ -185,13 +198,13 @@ defmodule Hangout.IRC.Connection do
 
   defp handle_channel_event({:user_mode_changed, setter, target, channel, mode, value}, state) do
     flag = if value, do: "+#{mode}", else: "-#{mode}"
-    send_line(state, ":#{setter}!#{setter}@hangout MODE #{channel} #{flag} #{target}\r\n")
+    send_line(state, Parser.mode_change(setter, channel, flag, target))
     {:noreply, state}
   end
 
   defp handle_channel_event({:room_ended, channel, reason}, state) do
     send_line(state, Parser.server_msg("NOTICE", channel, "Room ended: #{reason}"))
-    send_line(state, ":#{state.nick}!#{state.nick}@hangout PART #{channel} :#{reason}\r\n")
+    send_line(state, Parser.part(state.nick, channel, reason))
     state = %{state | channels: MapSet.delete(state.channels, channel)}
     Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
     {:noreply, state}
@@ -237,6 +250,8 @@ defmodule Hangout.IRC.Connection do
       NickRegistry.unregister(state.nick)
     end
 
+    if state.ip, do: Hangout.IPLimiter.release(state.ip)
+
     :ok
   end
 
@@ -273,6 +288,12 @@ defmodule Hangout.IRC.Connection do
         end
 
       true ->
+        case check_command_limit(state, :nick_limiter) do
+          {:limited, state} ->
+            send_line(state, Parser.server_msg("NOTICE", state.nick, "Nick change rate limited"))
+            {:noreply, state}
+
+          {:ok, state} ->
         case NickRegistry.change(state.nick, nick, %{transport: :irc, pid: self()}) do
           :ok ->
             old_nick = state.nick
@@ -286,12 +307,13 @@ defmodule Hangout.IRC.Connection do
               end
             end
 
-            send_line(state, ":#{old_nick}!#{old_nick}@hangout NICK :#{nick}\r\n")
+            send_line(state, Parser.nick_change(old_nick, nick))
             {:noreply, state}
 
           {:error, :nick_in_use} ->
             send_line(state, Parser.numeric(433, state.nick, [nick, "Nickname is already in use"]))
             {:noreply, state}
+        end
         end
     end
   end
@@ -343,91 +365,14 @@ defmodule Hangout.IRC.Connection do
   end
 
   defp dispatch("JOIN", [channels_str | _], state) do
-    channels = String.split(channels_str, ",", trim: true)
+    case check_command_limit(state, :join_limiter) do
+      {:ok, state} ->
+        dispatch_join(channels_str, state)
 
-    state =
-      Enum.reduce(channels, state, fn channel_name, acc ->
-        channel_name = normalize_channel(channel_name)
-
-        cond do
-          not Parser.valid_channel_name?(channel_name) ->
-            send_line(acc, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
-            acc
-
-          MapSet.member?(acc.channels, channel_name) ->
-            acc
-
-          true ->
-            case ChannelSupervisor.ensure_channel(channel_name) do
-              {:ok, _pid} ->
-                participant =
-                  Participant.new(state.nick, :irc, self(),
-                    user: state.user,
-                    realname: state.realname,
-                    bot?: state.bot?
-                  )
-
-                case ChannelServer.join(channel_name, participant) do
-                  {:ok, info, token} ->
-                    Phoenix.PubSub.subscribe(Hangout.PubSub, "channel:#{channel_name}")
-
-                    # JOIN confirmation
-                    send_line(acc, Parser.user_cmd(state.nick, state.user, "JOIN", channel_name))
-
-                    # Topic
-                    case info.topic do
-                      nil ->
-                        send_line(acc, Parser.numeric(331, state.nick, [channel_name, "No topic is set"]))
-
-                      topic ->
-                        send_line(acc, Parser.numeric(332, state.nick, [channel_name, topic]))
-                    end
-
-                    # NAMES
-                    nicks_with_prefix = format_names(channel_name, info.members)
-                    send_line(acc, Parser.names_reply(state.nick, channel_name, nicks_with_prefix))
-                    send_line(acc, Parser.end_of_names(state.nick, channel_name))
-
-                    # Scrollback
-                    send_scrollback(acc, channel_name, info.buffer)
-
-                    # Creator notice with capability token
-                    if token do
-                      send_line(
-                        acc,
-                        Parser.server_msg(
-                          "NOTICE",
-                          state.nick,
-                          "You are the room creator. Moderator token: #{token}"
-                        )
-                      )
-                    end
-
-                    %{acc | channels: MapSet.put(acc.channels, channel_name)}
-
-                  {:error, :channel_full} ->
-                    send_line(acc, Parser.numeric(471, state.nick, [channel_name, "Channel is full"]))
-                    acc
-
-                  {:error, :invite_only} ->
-                    send_line(acc, Parser.numeric(473, state.nick, [channel_name, "Cannot join channel (+i)"]))
-                    acc
-
-                  {:error, _reason} ->
-                    acc
-                end
-
-              {:error, :too_many_channels} ->
-                send_line(acc, Parser.server_msg("NOTICE", channel_name, "Too many active channels"))
-                acc
-
-              {:error, _} ->
-                acc
-            end
-        end
-      end)
-
-    {:noreply, state}
+      {:limited, state} ->
+        send_line(state, Parser.server_msg("NOTICE", state.nick, "Join rate limited"))
+        {:noreply, state}
+    end
   end
 
   defp dispatch("JOIN", [], state) do
@@ -477,6 +422,10 @@ defmodule Hangout.IRC.Connection do
                 {:ok, _msg} ->
                   :ok
 
+                {:error, :disconnect} ->
+                  send_line(state, "ERROR :Excess flood\r\n")
+                  throw({:stop, state})
+
                 {:error, :rate_limited} ->
                   send_line(state, Parser.server_msg("NOTICE", state.nick, "Rate limited"))
 
@@ -491,6 +440,10 @@ defmodule Hangout.IRC.Connection do
               case ChannelServer.message(channel_name, state.nick, :privmsg, body) do
                 {:ok, _msg} ->
                   :ok
+
+                {:error, :disconnect} ->
+                  send_line(state, "ERROR :Excess flood\r\n")
+                  throw({:stop, state})
 
                 {:error, :rate_limited} ->
                   send_line(state, Parser.server_msg("NOTICE", state.nick, "Rate limited"))
@@ -633,16 +586,13 @@ defmodule Hangout.IRC.Connection do
         for entry <- who_list do
           prefix = if MapSet.member?(entry.modes, :o), do: "@", else: ""
 
-          send_line(
-            state,
-            ":hangout 352 #{state.nick} #{channel_name} #{entry.user} hangout hangout #{entry.nick} H#{prefix} :0 #{entry.realname}\r\n"
-          )
+          send_line(state, Parser.who_reply(state.nick, channel_name, entry.user, entry.nick, prefix, entry.realname))
         end
 
-        send_line(state, ":hangout 315 #{state.nick} #{channel_name} :End of WHO list\r\n")
+        send_line(state, Parser.who_end(state.nick, channel_name))
 
       _ ->
-        send_line(state, ":hangout 315 #{state.nick} #{channel_name} :End of WHO list\r\n")
+        send_line(state, Parser.who_end(state.nick, channel_name))
     end
 
     {:noreply, state}
@@ -662,14 +612,10 @@ defmodule Hangout.IRC.Connection do
         send_line(state, Parser.numeric(401, state.nick, [nick, "No such nick/channel"]))
 
       info ->
-        send_line(
-          state,
-          ":hangout 311 #{state.nick} #{info.nick} #{info.user} hangout * :#{info.realname}\r\n"
-        )
-
+        send_line(state, Parser.whois_user(state.nick, info.nick, info.user, info.realname))
         channels_str = Enum.join(info.channels, " ")
-        send_line(state, ":hangout 319 #{state.nick} #{info.nick} :#{channels_str}\r\n")
-        send_line(state, ":hangout 318 #{state.nick} #{info.nick} :End of WHOIS list\r\n")
+        send_line(state, Parser.whois_channels(state.nick, info.nick, channels_str))
+        send_line(state, Parser.whois_end(state.nick, info.nick))
     end
 
     {:noreply, state}
@@ -677,7 +623,7 @@ defmodule Hangout.IRC.Connection do
 
   defp dispatch("LIST", _params, state) do
     # Non-discoverable by policy
-    send_line(state, ":hangout 323 #{state.nick} :End of LIST\r\n")
+    send_line(state, Parser.list_end(state.nick))
     {:noreply, state}
   end
 
@@ -812,6 +758,75 @@ defmodule Hangout.IRC.Connection do
 
   # --- Helpers ---
 
+  defp dispatch_join(channels_str, state) do
+    channels = String.split(channels_str, ",", trim: true)
+
+    state =
+      Enum.reduce(channels, state, fn channel_name, acc ->
+        channel_name = normalize_channel(channel_name)
+
+        cond do
+          not Parser.valid_channel_name?(channel_name) ->
+            send_line(acc, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
+            acc
+
+          MapSet.member?(acc.channels, channel_name) ->
+            acc
+
+          true ->
+            case ChannelSupervisor.ensure_channel(channel_name) do
+              {:ok, _pid} ->
+                participant =
+                  Participant.new(state.nick, :irc, self(),
+                    user: state.user,
+                    realname: state.realname,
+                    bot?: state.bot?
+                  )
+
+                case ChannelServer.join(channel_name, participant) do
+                  {:ok, info, token} ->
+                    Phoenix.PubSub.subscribe(Hangout.PubSub, "channel:#{channel_name}")
+                    send_line(acc, Parser.user_cmd(state.nick, state.user, "JOIN", channel_name))
+
+                    case info.topic do
+                      nil -> send_line(acc, Parser.numeric(331, state.nick, [channel_name, "No topic is set"]))
+                      topic -> send_line(acc, Parser.numeric(332, state.nick, [channel_name, topic]))
+                    end
+
+                    nicks_with_prefix = format_names(channel_name, info.members)
+                    send_line(acc, Parser.names_reply(state.nick, channel_name, nicks_with_prefix))
+                    send_line(acc, Parser.end_of_names(state.nick, channel_name))
+                    send_scrollback(acc, channel_name, info.buffer)
+
+                    if token do
+                      send_line(acc, Parser.server_msg("NOTICE", state.nick, "You are the room creator. Moderator token: #{token}"))
+                    end
+
+                    %{acc | channels: MapSet.put(acc.channels, channel_name)}
+
+                  {:error, :channel_full} ->
+                    send_line(acc, Parser.numeric(471, state.nick, [channel_name, "Channel is full"]))
+                    acc
+
+                  {:error, :invite_only} ->
+                    send_line(acc, Parser.numeric(473, state.nick, [channel_name, "Cannot join channel (+i)"]))
+                    acc
+
+                  {:error, _} -> acc
+                end
+
+              {:error, :too_many_channels} ->
+                send_line(acc, Parser.server_msg("NOTICE", channel_name, "Too many active channels"))
+                acc
+
+              {:error, _} -> acc
+            end
+        end
+      end)
+
+    {:noreply, state}
+  end
+
   defp maybe_complete_registration(%{nick: nick, user: user} = state)
        when nick != nil and user != nil and not state.registered? do
     state = %{state | registered?: true}
@@ -824,14 +839,18 @@ defmodule Hangout.IRC.Connection do
 
     send_line(
       state,
-      ":hangout 005 #{nick} CHANTYPES=# NICKLEN=16 CHANNELLEN=48 CHANMODES=o,v,m,i,t,l :are supported by this server\r\n"
+      Parser.isupport(nick)
     )
 
     send_line(state, Parser.numeric(422, nick, "MOTD File is missing"))
 
+    # Initialize command rate limiters (join/part: 3 per 10s, nick: 3 per 30s)
+    join_limiter = Hangout.RateLimiter.new(3, 3, 10_000)
+    nick_limiter = Hangout.RateLimiter.new(3, 1, 30_000)
+
     # Start ping timer
     ping_timer = Process.send_after(self(), :send_ping, @ping_interval)
-    state = %{state | ping_timer: ping_timer}
+    state = %{state | ping_timer: ping_timer, join_limiter: join_limiter, nick_limiter: nick_limiter}
 
     {:noreply, state}
   end
@@ -891,7 +910,7 @@ defmodule Hangout.IRC.Connection do
           |> Enum.map(fn {k, _v} -> to_string(k) end)
           |> Enum.join("")
 
-        send_line(state, ":hangout 324 #{state.nick} #{channel_name} +#{mode_str}\r\n")
+        send_line(state, Parser.channel_modes(state.nick, channel_name, mode_str))
 
       _ ->
         :ok
@@ -963,6 +982,21 @@ defmodule Hangout.IRC.Connection do
   defp parse_mode("o"), do: :o
   defp parse_mode("v"), do: :v
   defp parse_mode(_), do: nil
+
+  defp check_command_limit(state, limiter_key) do
+    limiter = Map.get(state, limiter_key)
+
+    case limiter && Hangout.RateLimiter.check(limiter) do
+      {:ok, new_limiter} ->
+        {:ok, Map.put(state, limiter_key, new_limiter)}
+
+      {:error, _, new_limiter} ->
+        {:limited, Map.put(state, limiter_key, new_limiter)}
+
+      nil ->
+        {:ok, state}
+    end
+  end
 
   defp split_lines(data) do
     parts = String.split(data, ["\r\n", "\n"])

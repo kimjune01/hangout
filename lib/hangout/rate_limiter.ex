@@ -1,6 +1,10 @@
 defmodule Hangout.RateLimiter do
   @moduledoc """
-  Token bucket rate limiter. In-memory, per-user, ephemeral.
+  Token bucket rate limiter with violation counter. In-memory, per-user, ephemeral.
+
+  Violations accumulate on rate-limit hits and reset on successful sends.
+  When violations exceed the disconnect threshold, `check/1` returns
+  `{:error, :disconnect}` instead of `{:error, :rate_limited}`.
   """
 
   defstruct [
@@ -8,7 +12,9 @@ defmodule Hangout.RateLimiter do
     :refill_rate,
     :refill_interval_ms,
     :tokens,
-    :last_refill
+    :last_refill,
+    :violations,
+    :violation_threshold
   ]
 
   @type t :: %__MODULE__{
@@ -16,8 +22,12 @@ defmodule Hangout.RateLimiter do
           refill_rate: non_neg_integer(),
           refill_interval_ms: non_neg_integer(),
           tokens: float(),
-          last_refill: integer()
+          last_refill: integer(),
+          violations: non_neg_integer(),
+          violation_threshold: non_neg_integer()
         }
+
+  @default_violation_threshold 15
 
   @doc """
   Create a new rate limiter.
@@ -39,20 +49,34 @@ defmodule Hangout.RateLimiter do
       refill_rate: refill_rate,
       refill_interval_ms: refill_interval_ms,
       tokens: max_tokens * 1.0,
-      last_refill: System.monotonic_time(:millisecond)
+      last_refill: System.monotonic_time(:millisecond),
+      violations: 0,
+      violation_threshold: Application.get_env(:hangout, :violation_threshold, @default_violation_threshold)
     }
   end
 
   @doc """
-  Try to consume one token. Returns `{:ok, updated_limiter}` or `{:error, :rate_limited}`.
+  Try to consume one token.
+
+  Returns:
+  - `{:ok, updated_limiter}` — token consumed, violation counter reset
+  - `{:error, :rate_limited, updated_limiter}` — no tokens, violations incremented
+  - `{:error, :disconnect, updated_limiter}` — violations exceeded threshold
   """
   def check(%__MODULE__{} = limiter) do
     limiter = refill(limiter)
 
     if limiter.tokens >= 1.0 do
-      {:ok, %{limiter | tokens: limiter.tokens - 1.0}}
+      {:ok, %{limiter | tokens: limiter.tokens - 1.0, violations: 0}}
     else
-      {:error, :rate_limited}
+      violations = limiter.violations + 1
+      limiter = %{limiter | violations: violations}
+
+      if violations >= limiter.violation_threshold do
+        {:error, :disconnect, limiter}
+      else
+        {:error, :rate_limited, limiter}
+      end
     end
   end
 

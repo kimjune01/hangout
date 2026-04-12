@@ -177,8 +177,15 @@ defmodule Hangout.ChannelServer do
       broadcast(state, {:message, state.name, msg})
       {:reply, {:ok, msg}, state}
     else
-      {:member, nil} -> {:reply, {:error, :not_on_channel}, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+      {:member, nil} ->
+        {:reply, {:error, :not_on_channel}, state}
+
+      {:error, reason, limiter} ->
+        state = update_limiter(state, nick, limiter)
+        {:reply, {:error, reason}, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -417,6 +424,13 @@ defmodule Hangout.ChannelServer do
       !state.modes[:m] -> :ok
       MapSet.member?(participant.modes, :o) or MapSet.member?(participant.modes, :v) -> :ok
       true -> {:error, :moderated}
+    end
+  end
+
+  defp update_limiter(state, nick, limiter) do
+    case state.members[nick] do
+      nil -> state
+      participant -> put_member(state, nick, %{participant | rate_limit_state: limiter})
     end
   end
 
