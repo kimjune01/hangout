@@ -13,7 +13,7 @@ defmodule HangoutWeb.Layouts do
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫧</text></svg>" />
         <script defer phx-track-static src="/assets/app.js"></script>
         <style>
-          :root {
+          :root, [data-theme="dark"] {
             --bg: #11100f;
             --panel: #191816;
             --panel-2: #211f1c;
@@ -27,6 +27,20 @@ defmodule HangoutWeb.Layouts do
             --success: #7cc7b2;
             --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          }
+
+          [data-theme="light"] {
+            --bg: #f5f3ef;
+            --panel: #ffffff;
+            --panel-2: #eae7e1;
+            --border: #d4cfc7;
+            --text: #1a1918;
+            --muted: #6b6560;
+            --dim: #8c857d;
+            --accent: #2a8f7a;
+            --accent-2: #b8860b;
+            --danger: #d32f2f;
+            --success: #2a8f7a;
           }
 
           *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -344,13 +358,38 @@ defmodule HangoutWeb.Layouts do
           .room-ended h2 { font-family: var(--font-mono); color: var(--muted); margin-bottom: 1rem; }
           .room-ended a { color: var(--accent); }
 
+          .theme-toggle {
+            position: fixed;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            z-index: 50;
+            line-height: 1;
+          }
+          .theme-toggle:hover { color: var(--text); }
+
           @media (max-width: 640px) {
             .container { padding: 0.5rem; }
             .message { max-width: none; }
           }
         </style>
+        <script>
+          (function() {
+            var t = localStorage.getItem('hangout_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+          })();
+        </script>
       </head>
       <body>
+        <button class="theme-toggle" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)" id="theme-btn">
+          <script>document.getElementById('theme-btn').textContent=localStorage.getItem('hangout_theme')==='light'?'☾':'☀'</script>
+        </button>
         {@inner_content}
       </body>
     </html>
