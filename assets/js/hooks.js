@@ -417,7 +417,40 @@ const Voice = {
   async getLocalStream() {
     if (this.localStream) return this.localStream;
     this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    this.startVoiceMeter();
     return this.localStream;
+  },
+
+  startVoiceMeter() {
+    const ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource(this.localStream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    this.audioCtx = ctx;
+
+    const btn = document.querySelector(".voice-btn.voice-active");
+    const tick = () => {
+      if (!this.localStream) return;
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const el = document.querySelector(".voice-btn.voice-active");
+      if (el) {
+        if (avg > 15) {
+          el.classList.add("voice-speaking");
+        } else {
+          el.classList.remove("voice-speaking");
+        }
+      }
+      this.meterRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  },
+
+  stopVoiceMeter() {
+    if (this.meterRaf) cancelAnimationFrame(this.meterRaf);
+    if (this.audioCtx) { this.audioCtx.close(); this.audioCtx = null; }
   },
 
   async createPeer(nick, initiator) {
@@ -478,6 +511,7 @@ const Voice = {
   },
 
   teardown() {
+    this.stopVoiceMeter();
     for (const [nick, pc] of Object.entries(this.peers)) {
       pc.close();
       this.removeAudio(nick);

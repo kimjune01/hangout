@@ -164,6 +164,9 @@ defmodule HangoutWeb.Layouts do
           }
           .voice-btn:hover { color: var(--text); border-color: var(--muted); }
           .voice-btn.voice-active { color: var(--accent); border-color: var(--accent); }
+          .voice-btn.voice-speaking { box-shadow: 0 0 0 3px rgba(124, 199, 178, 0.4); }
+          @keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 0 2px rgba(124, 199, 178, 0.3); } 50% { box-shadow: 0 0 0 5px rgba(124, 199, 178, 0.5); } }
+          .voice-btn.voice-speaking { animation: voice-pulse 0.6s ease-in-out infinite; }
           .input-bar input::placeholder { color: var(--dim); }
           .input-bar button {
             background: none;
