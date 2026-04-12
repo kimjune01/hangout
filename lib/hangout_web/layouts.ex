@@ -123,6 +123,19 @@ defmodule HangoutWeb.Layouts do
             outline: none;
           }
           .input-bar input:focus { border-bottom-color: var(--accent); }
+          .voice-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--dim);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            margin-right: 0.25rem;
+          }
+          .voice-btn:hover { color: var(--text); border-color: var(--muted); }
+          .voice-btn.voice-active { color: var(--accent); border-color: var(--accent); }
           .input-bar input::placeholder { color: var(--dim); }
           .input-bar button {
             background: none;

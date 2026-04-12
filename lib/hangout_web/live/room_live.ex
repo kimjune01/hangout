@@ -47,6 +47,9 @@ defmodule HangoutWeb.RoomLive do
         confirm_end?: false,
         asked_notifications?: false,
         mod_banner_dismissed?: false,
+        in_voice?: false,
+        voice_participants: [],
+        voice_enabled?: Application.get_env(:hangout, :enable_voice, true),
         room_population: room_population,
         page_title: "##{slug}"
       )
@@ -215,6 +218,39 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, mobile_members_open?: not socket.assigns.mobile_members_open?)}
   end
 
+  def handle_event("voice_join", _params, socket) do
+    case ChannelServer.voice_join(socket.assigns.channel_name, socket.assigns.nick) do
+      {:ok, peers} ->
+        socket =
+          socket
+          |> assign(in_voice?: true, voice_participants: peers)
+          |> push_event("voice:joined", %{peers: peers, self: socket.assigns.nick})
+
+        {:noreply, socket}
+
+      {:error, :voice_full} ->
+        {:noreply, put_flash(socket, :error, "Voice is full (max 5)")}
+
+      {:error, _} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("voice_leave", _params, socket) do
+    ChannelServer.voice_leave(socket.assigns.channel_name, socket.assigns.nick)
+    socket =
+      socket
+      |> assign(in_voice?: false)
+      |> push_event("voice:left", %{})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("voice_signal", %{"to" => to, "signal" => signal}, socket) do
+    ChannelServer.voice_signal(socket.assigns.channel_name, socket.assigns.nick, to, signal)
+    {:noreply, socket}
+  end
+
   def handle_event("enable_notifications", _params, socket) do
     {:noreply, assign(socket, notifications_enabled?: true)}
   end
@@ -227,7 +263,12 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, public_key: pk)}
   end
 
-  # --- PubSub messages ---
+  # --- PubSub + direct messages ---
+
+  @impl true
+  def handle_info({:voice_signal, from, signal}, socket) do
+    {:noreply, push_event(socket, "voice:signal", %{from: from, signal: signal})}
+  end
 
   @impl true
   def handle_info({:hangout_event, event}, socket) do
@@ -323,6 +364,7 @@ defmodule HangoutWeb.RoomLive do
           </div>
         <% end %>
 
+        <div id="voice-hook" phx-hook="Voice" style="display:none"></div>
         <div class="room-layout">
           <div class="messages-panel" style="position: relative;">
             <div class="messages" id="messages" phx-hook="Scroll">
@@ -369,6 +411,13 @@ defmodule HangoutWeb.RoomLive do
             </div>
 
             <div class="input-bar">
+              <%= if @voice_enabled? do %>
+                <%= if @in_voice? do %>
+                  <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">mic</button>
+                <% else %>
+                  <button class="voice-btn" phx-click="voice_join" title="Join voice">mic</button>
+                <% end %>
+              <% end %>
               <span class="nick-label">{@nick}</span>
               <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
                 <input
@@ -570,6 +619,23 @@ defmodule HangoutWeb.RoomLive do
 
   defp apply_event(socket, {:user_quit, _channel, member, _reason}) do
     assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+  end
+
+  defp apply_event(socket, {:voice_joined, _channel, nick, peers}) do
+    socket
+    |> assign(voice_participants: peers)
+    |> push_event("voice:peer_joined", %{nick: nick, peers: peers})
+  end
+
+  defp apply_event(socket, {:voice_left, _channel, nick}) do
+    peers = List.delete(socket.assigns[:voice_participants] || [], nick)
+
+    socket =
+      socket
+      |> assign(voice_participants: peers)
+      |> push_event("voice:peer_left", %{nick: nick})
+
+    if nick == socket.assigns.nick, do: assign(socket, in_voice?: false), else: socket
   end
 
   defp apply_event(socket, _event), do: socket

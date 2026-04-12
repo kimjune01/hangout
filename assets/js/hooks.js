@@ -336,4 +336,149 @@ const MessageForm = {
   },
 };
 
-export const Hooks = { Scroll, Notifications, MessageForm, Identity, TTLCountdown };
+// --- Voice Hook ---
+// WebRTC mesh for peer-to-peer audio. Max 5 participants.
+// Server relays SDP offers/answers and ICE candidates via LiveView events.
+// Audio goes browser-to-browser, never through the server.
+
+const Voice = {
+  mounted() {
+    this.peers = {};       // nick -> RTCPeerConnection
+    this.localStream = null;
+    this.selfNick = null;
+
+    // Server tells us we joined voice — set up mesh
+    this.handleEvent("voice:joined", async ({ peers, self }) => {
+      this.selfNick = self;
+      await this.getLocalStream();
+
+      // Create offers to all existing voice peers
+      for (const nick of peers) {
+        if (nick !== self && !this.peers[nick]) {
+          await this.createPeer(nick, true);
+        }
+      }
+    });
+
+    // We left voice — tear down
+    this.handleEvent("voice:left", () => {
+      this.teardown();
+    });
+
+    // Another peer joined — they will send us an offer, or we send one
+    this.handleEvent("voice:peer_joined", async ({ nick, peers }) => {
+      if (!this.localStream || nick === this.selfNick) return;
+      // The new joiner creates offers to existing peers, so we wait for their offer
+    });
+
+    // A peer left — close their connection
+    this.handleEvent("voice:peer_left", ({ nick }) => {
+      if (this.peers[nick]) {
+        this.peers[nick].close();
+        delete this.peers[nick];
+      }
+      this.removeAudio(nick);
+    });
+
+    // Incoming signaling from a peer
+    this.handleEvent("voice:signal", async ({ from, signal }) => {
+      const data = JSON.parse(signal);
+
+      if (data.type === "offer") {
+        await this.getLocalStream();
+        const pc = await this.createPeer(from, false);
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        this.signal(from, JSON.stringify(answer));
+      } else if (data.type === "answer") {
+        const pc = this.peers[from];
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data));
+      } else if (data.candidate) {
+        const pc = this.peers[from];
+        if (pc) await pc.addIceCandidate(new RTCIceCandidate(data));
+      }
+    });
+  },
+
+  async getLocalStream() {
+    if (this.localStream) return this.localStream;
+    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    return this.localStream;
+  },
+
+  async createPeer(nick, initiator) {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    this.peers[nick] = pc;
+
+    // Add our audio track
+    for (const track of this.localStream.getTracks()) {
+      pc.addTrack(track, this.localStream);
+    }
+
+    // When we get their audio, play it
+    pc.ontrack = (e) => {
+      let audio = document.getElementById(`voice-${nick}`);
+      if (!audio) {
+        audio = document.createElement("audio");
+        audio.id = `voice-${nick}`;
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+      }
+      audio.srcObject = e.streams[0];
+    };
+
+    // Relay ICE candidates
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        this.signal(nick, JSON.stringify(e.candidate));
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        pc.close();
+        delete this.peers[nick];
+        this.removeAudio(nick);
+      }
+    };
+
+    if (initiator) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      this.signal(nick, JSON.stringify(offer));
+    }
+
+    return pc;
+  },
+
+  signal(to, signal) {
+    this.pushEvent("voice_signal", { to, signal });
+  },
+
+  removeAudio(nick) {
+    const el = document.getElementById(`voice-${nick}`);
+    if (el) el.remove();
+  },
+
+  teardown() {
+    for (const [nick, pc] of Object.entries(this.peers)) {
+      pc.close();
+      this.removeAudio(nick);
+    }
+    this.peers = {};
+    if (this.localStream) {
+      for (const track of this.localStream.getTracks()) track.stop();
+      this.localStream = null;
+    }
+  },
+
+  destroyed() {
+    this.teardown();
+  },
+};
+
+export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown };

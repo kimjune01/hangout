@@ -26,7 +26,8 @@ defmodule Hangout.ChannelServer do
             human_count: 0,
             bot_count: 0,
             next_message_id: 1,
-            ttl_ref: nil
+            ttl_ref: nil,
+            voice_participants: MapSet.new()
 
   # --- Client API ---
 
@@ -66,6 +67,9 @@ defmodule Hangout.ChannelServer do
   def who(name), do: call(name, :who)
   def whois(name, nick), do: call(name, {:whois, nick})
   def mark_bot(name, nick), do: call(name, {:mark_bot, nick})
+  def voice_join(name, nick), do: call(name, {:voice_join, nick})
+  def voice_leave(name, nick), do: call(name, {:voice_leave, nick})
+  def voice_signal(name, from, to, signal), do: call(name, {:voice_signal, from, to, signal})
 
   def topic_name(channel_name), do: "channel:" <> channel_name
 
@@ -204,7 +208,12 @@ defmodule Hangout.ChannelServer do
         participant = %{participant | nick: new, last_seen_at: DateTime.utc_now()}
         {ref, refs} = Map.pop(state.monitor_refs, old)
         refs = if ref, do: Map.put(refs, new, ref), else: refs
-        state = %{state | members: Map.put(members, new, participant), monitor_refs: refs}
+        voice = if MapSet.member?(state.voice_participants, old) do
+          state.voice_participants |> MapSet.delete(old) |> MapSet.put(new)
+        else
+          state.voice_participants
+        end
+        state = %{state | members: Map.put(members, new, participant), monitor_refs: refs, voice_participants: voice}
         broadcast(state, {:nick_changed, state.name, old, new})
         {:reply, :ok, state}
     end
@@ -339,6 +348,50 @@ defmodule Hangout.ChannelServer do
       :error ->
         {:reply, {:error, :not_on_channel}, state}
     end
+  end
+
+  def handle_call({:voice_join, nick}, _from, state) do
+    max = Application.get_env(:hangout, :max_voice_participants, 5)
+
+    cond do
+      !Application.get_env(:hangout, :enable_voice, true) ->
+        {:reply, {:error, :voice_disabled}, state}
+
+      !Map.has_key?(state.members, nick) ->
+        {:reply, {:error, :not_on_channel}, state}
+
+      MapSet.member?(state.voice_participants, nick) ->
+        {:reply, {:ok, MapSet.to_list(state.voice_participants)}, state}
+
+      MapSet.size(state.voice_participants) >= max ->
+        {:reply, {:error, :voice_full}, state}
+
+      true ->
+        state = %{state | voice_participants: MapSet.put(state.voice_participants, nick)}
+        existing = MapSet.to_list(state.voice_participants)
+        broadcast(state, {:voice_joined, state.name, nick, existing})
+        {:reply, {:ok, existing}, state}
+    end
+  end
+
+  def handle_call({:voice_leave, nick}, _from, state) do
+    if MapSet.member?(state.voice_participants, nick) do
+      state = %{state | voice_participants: MapSet.delete(state.voice_participants, nick)}
+      broadcast(state, {:voice_left, state.name, nick})
+      {:reply, :ok, state}
+    else
+      {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:voice_signal, from, to, signal}, _from, state) do
+    # Relay signaling to the target participant's process
+    case state.members[to] do
+      %{pid: pid} -> send(pid, {:voice_signal, from, signal})
+      nil -> :ok
+    end
+
+    {:reply, :ok, state}
   end
 
   def handle_call({:validate_mod, token}, _from, state) do
@@ -578,7 +631,8 @@ defmodule Hangout.ChannelServer do
       topic: state.topic,
       modes: state.modes,
       human_count: state.human_count,
-      bot_count: state.bot_count
+      bot_count: state.bot_count,
+      voice_participants: MapSet.to_list(state.voice_participants)
     }
   end
 
@@ -587,14 +641,21 @@ defmodule Hangout.ChannelServer do
   end
 
   defp remove_member(state, nick) do
-    case Map.pop(state.monitor_refs, nick) do
-      {ref, refs} when is_reference(ref) ->
-        Process.demonitor(ref, [:flush])
-        %{state | members: Map.delete(state.members, nick), monitor_refs: refs}
+    was_in_voice = MapSet.member?(state.voice_participants, nick)
 
-      {nil, _} ->
-        %{state | members: Map.delete(state.members, nick)}
-    end
+    state =
+      case Map.pop(state.monitor_refs, nick) do
+        {ref, refs} when is_reference(ref) ->
+          Process.demonitor(ref, [:flush])
+          %{state | members: Map.delete(state.members, nick), monitor_refs: refs}
+
+        {nil, _} ->
+          %{state | members: Map.delete(state.members, nick)}
+      end
+
+    state = %{state | voice_participants: MapSet.delete(state.voice_participants, nick)}
+    if was_in_voice, do: broadcast(state, {:voice_left, state.name, nick})
+    state
   end
 
   defp update_member_modes(state, nick, fun) do

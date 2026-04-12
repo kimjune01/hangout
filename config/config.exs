@@ -14,7 +14,9 @@ config :hangout,
   message_body_max_bytes: 400,
   irc_line_max_bytes: 512,
   message_rate_limit: {5, 10_000},
-  message_burst: 10
+  message_burst: 10,
+  enable_voice: true,
+  max_voice_participants: 5
 
 config :hangout, HangoutWeb.Endpoint,
   url: [host: "localhost"],

@@ -22,8 +22,11 @@ if config_env() == :prod do
 
   config :hangout, irc_port: irc_port
 
-  # Optional: single-room mode. Set DEFAULT_ROOM=june to skip the home page.
   if default_room = System.get_env("DEFAULT_ROOM") do
     config :hangout, default_room: default_room
+  end
+
+  if System.get_env("ENABLE_VOICE") == "false" do
+    config :hangout, enable_voice: false
   end
 end
