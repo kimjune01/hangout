@@ -46,6 +46,7 @@ defmodule HangoutWeb.RoomLive do
         mobile_members_open?: false,
         confirm_end?: false,
         asked_notifications?: false,
+        mod_banner_dismissed?: false,
         room_population: room_population,
         page_title: "##{slug}"
       )
@@ -202,6 +203,10 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
+  def handle_event("dismiss_mod_banner", _params, socket) do
+    {:noreply, assign(socket, mod_banner_dismissed?: true)}
+  end
+
   def handle_event("cancel_end", _params, socket) do
     {:noreply, assign(socket, confirm_end?: false)}
   end
@@ -310,10 +315,11 @@ defmodule HangoutWeb.RoomLive do
           </div>
         </div>
 
-        <%= if @moderator? and @mod_capability_url do %>
+        <%= if @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
           <div class="mod-link-banner">
             <span class="label">Mod link (save this):</span>
             <code>{@mod_capability_url}</code>
+            <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;">dismiss</button>
           </div>
         <% end %>
 

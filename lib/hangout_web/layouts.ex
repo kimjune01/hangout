@@ -156,13 +156,15 @@ defmodule HangoutWeb.Layouts do
             font-size: 0.75rem;
           }
           .mod-controls summary {
-            color: var(--dim);
+            color: var(--muted);
             cursor: pointer;
             font-size: 0.75rem;
             user-select: none;
             list-style: none;
+            font-family: var(--font-mono);
           }
-          .mod-controls summary::before { content: "room controls"; }
+          .mod-controls summary::before { content: "⚙ room controls"; }
+          .mod-controls summary:hover { color: var(--text); }
           .mod-controls summary::-webkit-details-marker { display: none; }
           .mod-controls .mod-buttons {
             display: flex;
