@@ -5,11 +5,17 @@ defmodule HangoutWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket,
-      room_name: "",
-      ttl: "none",
-      page_title: "Hangout"
-    )}
+    case Application.get_env(:hangout, :default_room) do
+      slug when is_binary(slug) and slug != "" ->
+        {:ok, push_navigate(socket, to: "/#{slug}")}
+
+      _ ->
+        {:ok, assign(socket,
+          room_name: "",
+          ttl: "none",
+          page_title: "Hangout"
+        )}
+    end
   end
 
   @impl true
