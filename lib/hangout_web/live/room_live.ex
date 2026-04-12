@@ -73,10 +73,9 @@ defmodule HangoutWeb.RoomLive do
   def handle_event("choose_nick", %{"nick" => nick}, socket) do
     nick = String.trim(nick)
 
-    cond do
-      nick == "" ->
-        {:noreply, put_flash(socket, :error, "Nick cannot be empty")}
+    nick = if nick == "", do: generate_nick(), else: nick
 
+    cond do
       not NickRegistry.valid?(nick) ->
         {:noreply, put_flash(socket, :error, "Invalid nick. Use 1-16 chars starting with a letter.")}
 
@@ -258,8 +257,8 @@ defmodule HangoutWeb.RoomLive do
               <input
                 type="text"
                 name="nick"
-                value={@default_nick}
-                placeholder="Pick a nick"
+                value=""
+                placeholder="What's your name?"
                 autocomplete="off"
                 autofocus
               />
