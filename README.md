@@ -81,12 +81,40 @@ The full product and implementation spec is in [SPEC.md](SPEC.md) (1222 lines). 
 mix test
 ```
 
-58 tests covering:
+68 tests covering:
 
 - **Acceptance criteria** (20) — room join, cross-client messaging, moderation, TTL, ephemerality
 - **IRC wire protocol** (7) — registration, two-client exchange, BOT, MODAUTH, KICK, LIST, QUIT
-- **Parser** (24) — line length property (all formatters ≤ 512 bytes), parse edge cases, validation
-- **Bridge** (7) — PubSub event shapes, IRC wire output from channel events
+- **Parser** (24) — line length property (all formatters ≤ 512 bytes), parse edge cases, NAMES splitting
+- **Bridge** (8) — PubSub event shapes, IRC wire output, :user_quit
+- **E2E smoke** (9) — LiveView flows, cross-protocol IRC ↔ browser
+
+## Configuration
+
+```bash
+# Environment variables (set in systemd unit or .env)
+SECRET_KEY_BASE=...       # required in prod
+PHX_HOST=chat.june.kim    # your domain
+PORT=4000                 # HTTP port
+IRC_PORT=6667             # IRC TCP port
+DEFAULT_ROOM=june         # optional: skip home page, go straight to this room
+```
+
+**Single-room mode:** Set `DEFAULT_ROOM` to run as a personal chat page. Visiting `/` redirects to `/<room>`. The home page is still accessible at `/<any-other-slug>`. Useful for embedding a chat button on a blog — visitors land directly in your room.
+
+## Deploy
+
+Deployed to AWS Lightsail ($3.50/mo) with Caddy for TLS.
+
+```bash
+# One-time setup on server
+bash deploy/setup.sh
+
+# Each deploy
+bash deploy/deploy.sh
+```
+
+See `deploy/` for Caddyfile, systemd unit, and setup/deploy scripts with lessons learned.
 
 ## IRC commands
 
