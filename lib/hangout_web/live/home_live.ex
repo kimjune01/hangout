@@ -33,8 +33,12 @@ defmodule HangoutWeb.HomeLive do
     ~H"""
     <div class="container">
       <div class="home-form">
-        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">Hangout</h1>
-        <p style="color: #8b949e; margin-bottom: 2rem;">Ephemeral chat rooms. No signup.</p>
+        <h1>#hangout</h1>
+        <p class="tagline">Rooms exist while people are in them.</p>
+
+        <%= if f = @flash["error"] do %>
+          <div class="flash error">{f}</div>
+        <% end %>
 
         <form phx-submit="create_room">
           <input
@@ -56,9 +60,9 @@ defmodule HangoutWeb.HomeLive do
           <button type="submit">Create room</button>
         </form>
 
-        <div class="social-contract" style="margin-top: 2rem;">
-          <p>The room disappears from this server when everyone leaves.</p>
-          <p>Anyone in the room can still copy or record what they see.</p>
+        <div class="social-contract">
+          <p>No accounts. No history. No permanence.</p>
+          <p>Anyone present can still copy what they see.</p>
         </div>
       </div>
     </div>

@@ -220,34 +220,48 @@ defmodule HangoutWeb.RoomLive do
 
       <%= if not @joined? do %>
         <%= if @connection_status in [:room_ended, :room_expired] do %>
-          <div class="nick-prompt">
+          <div class="room-ended">
             <h2>Room ended</h2>
-            <p style="color: #8b949e; margin-top: 1rem;">This room no longer exists.</p>
-            <a href="/" style="color: #58a6ff; margin-top: 1rem; display: inline-block;">Create a new room</a>
+            <p style="color: var(--muted); margin-top: 1rem;">This room no longer exists.</p>
+            <a href="/" style="margin-top: 1rem; display: inline-block;">Create a new room</a>
           </div>
         <% else %>
           <div class="nick-prompt">
-            <h2>{@channel_name}</h2>
+            <div class="room-name">{@channel_name}</div>
+
+            <%= if f = @flash["error"] do %>
+              <div class="flash error" style="max-width: 20rem; margin: 0 auto 1rem;">{f}</div>
+            <% end %>
+
             <form phx-submit="choose_nick">
               <input
                 type="text"
                 name="nick"
                 value={@default_nick}
-                placeholder="Choose a nick"
+                placeholder="Pick a nick"
                 autocomplete="off"
                 autofocus
               />
-              <button type="submit">Join</button>
+              <button type="submit">Step in</button>
             </form>
             <div class="social-contract">
-              <p>The room disappears from this server when everyone leaves.</p>
-              <p>Anyone in the room can still copy or record what they see.</p>
+              <p>The room disappears when everyone leaves.</p>
+              <p>Anyone present can still copy what they see.</p>
             </div>
           </div>
         <% end %>
       <% else %>
+        <%= if f = @flash["error"] do %>
+          <div class="flash error">{f}</div>
+        <% end %>
+
         <div class="header">
-          <h1>{@channel_name}</h1>
+          <div style="display: flex; align-items: baseline; min-width: 0; overflow: hidden;">
+            <h1>{@channel_name}</h1>
+            <%= if @topic do %>
+              <span class="topic">{@topic}</span>
+            <% end %>
+          </div>
           <div class="badges">
             <%= if @modes[:i] do %>
               <span class="lock-badge" title="Room is locked">locked</span>
@@ -263,14 +277,14 @@ defmodule HangoutWeb.RoomLive do
             <button class="mobile-member-toggle" phx-click="toggle_members">
               {length(@participants)} in room
             </button>
-            <span style="font-size: 0.8rem;">{length(@participants)} in room</span>
+            <span class="desktop-count member-count">{length(@participants)} in room</span>
           </div>
         </div>
 
         <%= if @moderator? and @mod_capability_url do %>
-          <div style="background: #1c2128; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.8rem;">
-            <span style="color: #f0883e;">Mod link (save this):</span>
-            <code style="color: #58a6ff; word-break: break-all;">{@mod_capability_url}</code>
+          <div class="mod-link-banner">
+            <span class="label">Mod link (save this):</span>
+            <code>{@mod_capability_url}</code>
           </div>
         <% end %>
 
@@ -282,27 +296,27 @@ defmodule HangoutWeb.RoomLive do
                   <span class="time">{format_time(msg.at)}</span>
                   <%= case msg.kind do %>
                     <% :privmsg -> %>
-                      <span class="nick">{msg.from}:</span> {msg.body}
+                      <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
                     <% :action -> %>
-                      * <span class="nick">{msg.from}</span> {msg.body}
+                      * <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}</span> {msg.body}
                     <% :notice -> %>
                       -<span class="nick">{msg.from}</span>- {msg.body}
                     <% :system -> %>
                       {msg.body}
                     <% _ -> %>
-                      <span class="nick">{msg.from}:</span> {msg.body}
+                      <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
                   <% end %>
                 </div>
               <% end %>
             </div>
 
             <div class="input-bar">
-              <span style="color: #8b949e; padding: 0.5rem 0; font-size: 0.85rem;">{@nick}</span>
-              <form phx-submit="send_message" style="display: flex; flex: 1; gap: 0.5rem;">
+              <span class="nick-label">{@nick}</span>
+              <form phx-submit="send_message" style="display: flex; flex: 1;">
                 <input
                   type="text"
                   name="body"
-                  placeholder="Type a message... (/me for actions)"
+                  placeholder="Type a message..."
                   autocomplete="off"
                   autofocus
                   maxlength="400"
@@ -314,25 +328,28 @@ defmodule HangoutWeb.RoomLive do
             </div>
 
             <%= if @moderator? do %>
-              <div class="mod-controls">
-                <%= if @modes[:i] do %>
-                  <button phx-click="unlock_room">Unlock</button>
-                <% else %>
-                  <button phx-click="lock_room">Lock</button>
-                <% end %>
-                <%= if @modes[:m] do %>
-                  <button phx-click="unmute_room">Unmute</button>
-                <% else %>
-                  <button phx-click="mute_room">Mute</button>
-                <% end %>
-                <button phx-click="clear_buffer">Clear buffer</button>
-                <%= if @confirm_end? do %>
-                  <button class="danger" phx-click="end_room">Confirm end</button>
-                  <button phx-click="cancel_end">Cancel</button>
-                <% else %>
-                  <button class="danger" phx-click="end_room">End room</button>
-                <% end %>
-              </div>
+              <details class="mod-controls">
+                <summary></summary>
+                <div class="mod-buttons">
+                  <%= if @modes[:i] do %>
+                    <button phx-click="unlock_room">Unlock</button>
+                  <% else %>
+                    <button phx-click="lock_room">Lock</button>
+                  <% end %>
+                  <%= if @modes[:m] do %>
+                    <button phx-click="unmute_room">Unmute</button>
+                  <% else %>
+                    <button phx-click="mute_room">Mute</button>
+                  <% end %>
+                  <button phx-click="clear_buffer">Clear</button>
+                  <%= if @confirm_end? do %>
+                    <button class="danger" phx-click="end_room">Confirm end</button>
+                    <button phx-click="cancel_end">Cancel</button>
+                  <% else %>
+                    <button class="danger" phx-click="end_room">End room</button>
+                  <% end %>
+                </div>
+              </details>
             <% end %>
           </div>
 
@@ -343,7 +360,7 @@ defmodule HangoutWeb.RoomLive do
                 <%= if :o in (member.modes || []) do %>
                   <span class="op-badge">@</span>
                 <% end %>
-                <span>{member.nick}</span>
+                <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
                 <%= if member.bot? do %>
                   <span class="bot-badge">[bot]</span>
                 <% end %>
@@ -542,6 +559,18 @@ defmodule HangoutWeb.RoomLive do
   defp message_class(%{kind: :action}), do: "action"
   defp message_class(%{kind: :notice}), do: "notice"
   defp message_class(_), do: ""
+
+  # Nick color palette — 12 hues readable on dark backgrounds
+  @nick_colors [
+    "#7cc7b2", "#e0b15d", "#c78dea", "#6cb4ee",
+    "#e88b72", "#8dd99b", "#dda0c5", "#b0c862",
+    "#7ab8d4", "#d4a76a", "#a0b4e0", "#c9c270"
+  ]
+
+  defp nick_color(nick) do
+    hash = :erlang.phash2(nick, length(@nick_colors))
+    Enum.at(@nick_colors, hash)
+  end
 
   defp human_error(:nick_in_use), do: "Nick already in use"
   defp human_error(:in_use), do: "Nick already in use"
