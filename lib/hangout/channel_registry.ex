@@ -21,9 +21,15 @@ defmodule Hangout.ChannelRegistry do
   Look up the PID of a channel by name. Returns `{:ok, pid}` or `:error`.
   """
   def lookup(channel_name) do
-    case Registry.lookup(@registry, canonical!(channel_name)) do
-      [{pid, _value}] when is_pid(pid) -> {:ok, pid}
-      [] -> :error
+    case canonical(channel_name) do
+      {:ok, canon} ->
+        case Registry.lookup(@registry, canon) do
+          [{pid, _value}] when is_pid(pid) -> {:ok, pid}
+          [] -> :error
+        end
+
+      :error ->
+        :error
     end
   end
 
@@ -69,12 +75,28 @@ defmodule Hangout.ChannelRegistry do
   @doc """
   Validates a channel name against IRC conventions.
   """
-  def valid?(name) when is_binary(name), do: Regex.match?(@channel_re, canonical!(name))
+  def valid?(name) when is_binary(name) do
+    case canonical(name) do
+      {:ok, canon} -> Regex.match?(@channel_re, canon)
+      :error -> false
+    end
+  end
+
   def valid?(_), do: false
 
   @doc """
   Canonicalize a channel name (ensure it starts with #).
   """
+  def canonical(name) when is_binary(name) do
+    case name do
+      "#" <> _ -> {:ok, name}
+      "<<" <> _ -> :error
+      slug -> {:ok, "#" <> slug}
+    end
+  end
+
+  def canonical(_), do: :error
+
   def canonical!("<<" <> _), do: raise(ArgumentError, "invalid channel name")
   def canonical!("#" <> _ = name), do: name
   def canonical!(slug) when is_binary(slug), do: canonical!("#" <> slug)

@@ -100,13 +100,25 @@ defmodule Hangout.ChannelServerTest do
     assert_receive {:hangout_event, {:nick_changed, "#test-ac6", "oldnick", "newnick"}}, 1000
   end
 
-  test "AC6: topic set and get" do
-    p = make_participant("topicuser", pid: spawn(fn -> Process.sleep(:infinity) end))
-    {:ok, _, token} = ChannelServer.join("#test-ac6t", p)
+  test "AC6: topic set by operator and by token" do
+    creator = make_participant("topicuser", pid: spawn(fn -> Process.sleep(:infinity) end))
+    other = make_participant("other-topic", pid: spawn(fn -> Process.sleep(:infinity) end))
+    {:ok, _, token} = ChannelServer.join("#test-ac6t", creator)
+    {:ok, _, _} = ChannelServer.join("#test-ac6t", other)
 
+    # Operator can set topic (first joiner is op)
     :ok = ChannelServer.set_topic("#test-ac6t", "topicuser", "Hello World")
     {:ok, topic} = ChannelServer.topic("#test-ac6t")
     assert topic == "Hello World"
+
+    # Non-op can set topic when +t is off (default: +t on, but op can set anyway)
+    # Test token auth: non-op with token
+    :ok = ChannelServer.set_topic("#test-ac6t", "other-topic", "Token Topic", token)
+    {:ok, topic} = ChannelServer.topic("#test-ac6t")
+    assert topic == "Token Topic"
+
+    # Non-op without token can't set when +t is on
+    {:error, :chanop_needed} = ChannelServer.set_topic("#test-ac6t", "other-topic", "Nope")
   end
 
   # AC7: The first human creator can kick, lock, unlock, and end the room using a capability URL.

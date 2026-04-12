@@ -131,6 +131,25 @@ defmodule Hangout.BridgeTest do
 
       assert_receive {:hangout_event, {:nick_changed, ^channel, "oldname", "newname"}}, 1000
     end
+
+    test "user_quit event on process death" do
+      channel = "#bridge-quit-#{System.unique_integer([:positive])}"
+      Phoenix.PubSub.subscribe(Hangout.PubSub, "channel:#{channel}")
+
+      keeper = make_participant("keeper", pid: spawn(fn -> Process.sleep(:infinity) end))
+      {:ok, _, _} = ChannelServer.join(channel, keeper)
+      flush()
+
+      doomed_pid = spawn(fn -> Process.sleep(:infinity) end)
+      doomed = make_participant("doomed", pid: doomed_pid)
+      {:ok, _, _} = ChannelServer.join(channel, doomed)
+      flush()
+
+      Process.exit(doomed_pid, :kill)
+
+      assert_receive {:hangout_event, {:user_quit, ^channel, participant, "Connection lost"}}, 1000
+      assert participant.nick == "doomed"
+    end
   end
 
   # --- IRC wire format from PubSub events ---

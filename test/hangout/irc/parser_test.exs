@@ -44,10 +44,24 @@ defmodule Hangout.IRC.ParserTest do
       assert byte_size(line) <= @line_max
     end
 
-    test "names_reply respects 512-byte limit" do
+    test "names_reply splits into multiple lines under 512 bytes" do
       nicks = for i <- 1..100, do: "user#{i}"
-      line = Parser.names_reply("me", "#channel", nicks)
-      assert byte_size(line) <= @line_max
+      lines = Parser.names_reply("me", "#channel", nicks)
+
+      assert is_list(lines)
+      assert length(lines) > 1
+
+      for line <- lines do
+        assert byte_size(line) <= @line_max
+        assert String.ends_with?(line, "\r\n")
+        assert line =~ "353"
+      end
+
+      # All nicks appear exactly once across all lines
+      all_content = Enum.join(lines)
+      for nick <- nicks do
+        assert String.contains?(all_content, nick)
+      end
     end
 
     test "all formatters end with CRLF" do
@@ -56,7 +70,7 @@ defmodule Hangout.IRC.ParserTest do
         Parser.numeric(1, "nick", "Welcome"),
         Parser.user_msg("a", "a", "PRIVMSG", "#ch", "hi"),
         Parser.user_cmd("a", "a", "JOIN", "#ch"),
-        Parser.names_reply("a", "#ch", ["a", "b"]),
+        hd(Parser.names_reply("a", "#ch", ["a", "b"])),
         Parser.end_of_names("a", "#ch"),
         Parser.pong("token"),
         Parser.kick("mod", "#ch", "target", "reason"),

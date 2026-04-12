@@ -14,6 +14,7 @@ defmodule Hangout.ChannelServer do
   defstruct name: nil,
             slug: nil,
             members: %{},
+            monitor_refs: %{},
             buffer: :queue.new(),
             buffer_size: 0,
             created_at: nil,
@@ -112,7 +113,7 @@ defmodule Hangout.ChannelServer do
         {:reply, {:error, :channel_full}, state}
 
       true ->
-        Process.monitor(participant.pid)
+        ref = Process.monitor(participant.pid)
 
         participant =
           if first_human? do
@@ -139,6 +140,7 @@ defmodule Hangout.ChannelServer do
         state =
           state
           |> put_member(participant.nick, participant)
+          |> Map.update!(:monitor_refs, &Map.put(&1, participant.nick, ref))
           |> refresh_counts()
 
         broadcast(state, {:user_joined, state.name, public_participant(participant)})
@@ -148,12 +150,12 @@ defmodule Hangout.ChannelServer do
   end
 
   def handle_call({:part, nick, reason}, _from, state) do
-    case Map.pop(state.members, nick) do
-      {nil, _} ->
+    case Map.fetch(state.members, nick) do
+      :error ->
         {:reply, {:error, :not_on_channel}, state}
 
-      {participant, members} ->
-        state = %{state | members: members} |> refresh_counts()
+      {:ok, participant} ->
+        state = remove_member(state, nick) |> refresh_counts()
         event = {:user_parted, state.name, public_participant(participant), reason}
         broadcast(state, event)
         deliver_to(participant, event)
@@ -200,7 +202,9 @@ defmodule Hangout.ChannelServer do
       true ->
         {participant, members} = Map.pop(state.members, old)
         participant = %{participant | nick: new, last_seen_at: DateTime.utc_now()}
-        state = %{state | members: Map.put(members, new, participant)}
+        {ref, refs} = Map.pop(state.monitor_refs, old)
+        refs = if ref, do: Map.put(refs, new, ref), else: refs
+        state = %{state | members: Map.put(members, new, participant), monitor_refs: refs}
         broadcast(state, {:nick_changed, state.name, old, new})
         {:reply, :ok, state}
     end
@@ -215,12 +219,17 @@ defmodule Hangout.ChannelServer do
   def handle_call(:snapshot, _from, state), do: {:reply, {:ok, build_snapshot(state)}, state}
 
   def handle_call({:set_topic, nick, topic, token}, _from, state) do
-    if authorized?(state, nick, token) or !state.modes[:t] do
-      state = %{state | topic: topic}
-      broadcast(state, {:topic_changed, state.name, nick, topic})
-      {:reply, :ok, state}
-    else
-      {:reply, {:error, :chanop_needed}, state}
+    cond do
+      !Map.has_key?(state.members, nick) and !valid_token?(state, token) ->
+        {:reply, {:error, :not_on_channel}, state}
+
+      authorized?(state, nick, token) or !state.modes[:t] ->
+        state = %{state | topic: topic}
+        broadcast(state, {:topic_changed, state.name, nick, topic})
+        {:reply, :ok, state}
+
+      true ->
+        {:reply, {:error, :chanop_needed}, state}
     end
   end
 
@@ -236,12 +245,12 @@ defmodule Hangout.ChannelServer do
 
   def handle_call({:kick, actor, target, reason, token}, _from, state) do
     if authorized?(state, actor, token) do
-      case Map.pop(state.members, target) do
-        {nil, _} ->
+      case Map.fetch(state.members, target) do
+        :error ->
           {:reply, {:error, :not_on_channel}, state}
 
-        {participant, members} ->
-          state = %{state | members: members} |> refresh_counts()
+        {:ok, participant} ->
+          state = remove_member(state, target) |> refresh_counts()
           event = {:user_kicked, state.name, actor, public_participant(participant), reason || "kicked"}
           broadcast(state, event)
           deliver_to(participant, event)
@@ -378,7 +387,7 @@ defmodule Hangout.ChannelServer do
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     case Enum.find(state.members, fn {_nick, p} -> p.pid == pid end) do
       {nick, participant} ->
-        state = %{state | members: Map.delete(state.members, nick)} |> refresh_counts()
+        state = remove_member(state, nick) |> refresh_counts()
         event = {:user_quit, state.name, public_participant(participant), "Connection lost"}
         broadcast(state, event)
         maybe_stop_noreply(state, "Last human left")
@@ -575,6 +584,17 @@ defmodule Hangout.ChannelServer do
 
   defp put_member(state, nick, participant) do
     %{state | members: Map.put(state.members, nick, participant)}
+  end
+
+  defp remove_member(state, nick) do
+    case Map.pop(state.monitor_refs, nick) do
+      {ref, refs} when is_reference(ref) ->
+        Process.demonitor(ref, [:flush])
+        %{state | members: Map.delete(state.members, nick), monitor_refs: refs}
+
+      {nil, _} ->
+        %{state | members: Map.delete(state.members, nick)}
+    end
   end
 
   defp update_member_modes(state, nick, fun) do

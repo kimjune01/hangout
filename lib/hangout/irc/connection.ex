@@ -608,7 +608,7 @@ defmodule Hangout.IRC.Connection do
     case ChannelServer.names(channel_name) do
       {:ok, members} ->
         nicks = format_names_from_members(members)
-        send_line(state, Parser.names_reply(state.nick, channel_name, nicks))
+        Enum.each(Parser.names_reply(state.nick, channel_name, nicks), &send_line(state, &1))
         send_line(state, Parser.end_of_names(state.nick, channel_name))
 
       _ ->
@@ -834,7 +834,7 @@ defmodule Hangout.IRC.Connection do
                     end
 
                     nicks_with_prefix = format_names_from_members(info.members)
-                    send_line(acc, Parser.names_reply(state.nick, channel_name, nicks_with_prefix))
+                    Enum.each(Parser.names_reply(state.nick, channel_name, nicks_with_prefix), &send_line(acc, &1))
                     send_line(acc, Parser.end_of_names(state.nick, channel_name))
                     send_scrollback(acc, channel_name, info.buffer)
 
@@ -960,55 +960,67 @@ defmodule Hangout.IRC.Connection do
   end
 
   defp handle_channel_mode(channel_name, [mode_str | rest], state) do
-    {adding, mode_char} =
+    # Parse "+im", "-ov nick1 nick2", etc. into individual mode operations
+    {adding, chars} =
       case mode_str do
         "+" <> m -> {true, m}
         "-" <> m -> {false, m}
         m -> {true, m}
       end
 
-    mode_atom = parse_mode(mode_char)
+    {_rest_args, _} =
+      String.graphemes(chars)
+      |> Enum.reduce({rest, :ok}, fn char, {args, _} ->
+        mode_atom = parse_mode(char)
+        op = if adding, do: "+", else: "-"
 
-    cond do
-      mode_atom == nil ->
-        send_line(state, Parser.numeric(472, state.nick, [mode_char, "is unknown mode char to me"]))
+        cond do
+          mode_atom == nil ->
+            send_line(state, Parser.numeric(472, state.nick, [char, "is unknown mode char to me"]))
+            {args, :ok}
 
-      mode_atom in [:o, :v] ->
-        target_nick = List.first(rest)
+          mode_atom in [:o, :v] ->
+            case args do
+              [target | remaining] ->
+                apply_single_mode(state, channel_name, op, mode_atom, target)
+                {remaining, :ok}
 
-        if target_nick do
-          case ChannelServer.mode(channel_name, state.nick, (if adding, do: "+", else: "-"), mode_atom, target_nick) do
-            :ok ->
-              :ok
+              [] ->
+                send_line(state, Parser.numeric(461, state.nick, ["MODE", "Not enough parameters"]))
+                {args, :ok}
+            end
 
-            {:error, :chanop_needed} ->
-              send_line(state, Parser.numeric(482, state.nick, [channel_name, "You're not channel operator"]))
+          mode_atom == :l and adding ->
+            case args do
+              [limit | remaining] ->
+                apply_single_mode(state, channel_name, op, mode_atom, limit)
+                {remaining, :ok}
 
-            {:error, _} ->
-              :ok
-          end
-        else
-          send_line(state, Parser.numeric(461, state.nick, ["MODE", "Not enough parameters"]))
+              [] ->
+                send_line(state, Parser.numeric(461, state.nick, ["MODE", "Not enough parameters"]))
+                {args, :ok}
+            end
+
+          true ->
+            apply_single_mode(state, channel_name, op, mode_atom, nil)
+            {args, :ok}
         end
-
-      true ->
-        case ChannelServer.mode(channel_name, state.nick, (if adding, do: "+", else: "-"), mode_atom) do
-          :ok ->
-            :ok
-
-          {:error, :chanop_needed} ->
-            send_line(state, Parser.numeric(482, state.nick, [channel_name, "You're not channel operator"]))
-
-          {:error, _} ->
-            :ok
-        end
-    end
+      end)
 
     {:noreply, state}
   catch
     :exit, _ ->
       send_line(state, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
       {:noreply, state}
+  end
+
+  defp apply_single_mode(state, channel_name, op, mode_atom, arg) do
+    case ChannelServer.mode(channel_name, state.nick, op, mode_atom, arg) do
+      :ok -> :ok
+      {:error, :chanop_needed} ->
+        send_line(state, Parser.numeric(482, state.nick, [channel_name, "You're not channel operator"]))
+      {:error, _} -> :ok
+    end
   end
 
   defp parse_mode("i"), do: :i

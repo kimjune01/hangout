@@ -123,10 +123,34 @@ defmodule Hangout.IRC.Parser do
     line(user_prefix(nick, user), command, [params])
   end
 
-  @doc "Format NAMES reply (353)."
+  @doc "Format NAMES reply as a list of 353 lines (chunked to fit 512 bytes each)."
   def names_reply(nick, channel_name, nicks_with_prefix) do
-    nick_list = Enum.join(nicks_with_prefix, " ")
-    line("hangout", "353", [nick, "=", channel_name, nick_list])
+    # Prefix overhead: ":hangout 353 nick = #channel :\r\n"
+    overhead = byte_size(":hangout 353 #{nick} = #{channel_name} :") + 2
+    max_payload = @line_max - overhead
+
+    chunk_nicks(nicks_with_prefix, max_payload)
+    |> Enum.map(fn chunk ->
+      nick_list = Enum.join(chunk, " ")
+      line("hangout", "353", [nick, "=", channel_name, nick_list])
+    end)
+  end
+
+  defp chunk_nicks(nicks, max_bytes) do
+    {chunks, current, _size} =
+      Enum.reduce(nicks, {[], [], 0}, fn nick, {chunks, current, size} ->
+        nick_size = byte_size(nick)
+        new_size = if current == [], do: nick_size, else: size + 1 + nick_size
+
+        if new_size > max_bytes and current != [] do
+          {[Enum.reverse(current) | chunks], [nick], nick_size}
+        else
+          {chunks, [nick | current], new_size}
+        end
+      end)
+
+    chunks = if current != [], do: [Enum.reverse(current) | chunks], else: chunks
+    Enum.reverse(chunks)
   end
 
   @doc "Format end of NAMES (366)."
