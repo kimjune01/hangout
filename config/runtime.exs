@@ -29,4 +29,8 @@ if config_env() == :prod do
   if System.get_env("ENABLE_VOICE") == "false" do
     config :hangout, enable_voice: false
   end
+
+  if legal_url = System.get_env("LEGAL_URL") do
+    config :hangout, legal_url: legal_url
+  end
 end

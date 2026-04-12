@@ -50,6 +50,7 @@ defmodule HangoutWeb.RoomLive do
         in_voice?: false,
         voice_participants: [],
         voice_enabled?: Application.get_env(:hangout, :enable_voice, true),
+        legal_url: Application.get_env(:hangout, :legal_url),
         room_population: room_population,
         page_title: "##{slug}"
       )
@@ -326,6 +327,9 @@ defmodule HangoutWeb.RoomLive do
             <div class="social-contract">
               <p>The room disappears when everyone leaves.</p>
               <p>Anyone present can still copy what they see.</p>
+              <%= if @legal_url do %>
+                <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
+              <% end %>
             </div>
           </div>
         <% end %>

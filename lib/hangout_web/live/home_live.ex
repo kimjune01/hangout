@@ -13,7 +13,8 @@ defmodule HangoutWeb.HomeLive do
         {:ok, assign(socket,
           room_name: "",
           ttl: "none",
-          page_title: "Hangout"
+          page_title: "Hangout",
+          legal_url: Application.get_env(:hangout, :legal_url)
         )}
     end
   end
@@ -68,6 +69,9 @@ defmodule HangoutWeb.HomeLive do
         <div class="social-contract">
           <p>No accounts. No history. No permanence.</p>
           <p>Anyone present can still copy what they see.</p>
+          <%= if @legal_url do %>
+            <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
+          <% end %>
         </div>
       </div>
     </div>
