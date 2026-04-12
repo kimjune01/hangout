@@ -318,7 +318,7 @@ defmodule HangoutWeb.RoomLive do
         <%= if @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
           <div class="mod-link-banner">
             <span class="label">Mod link (save this):</span>
-            <code>{@mod_capability_url}</code>
+            <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
             <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;">dismiss</button>
           </div>
         <% end %>
