@@ -190,11 +190,15 @@ defmodule Hangout.ChannelServer do
   end
 
   def handle_call({:nick, old, new}, _from, state) do
-    case Map.pop(state.members, old) do
-      {nil, _} ->
+    cond do
+      !Map.has_key?(state.members, old) ->
         {:reply, {:error, :not_on_channel}, state}
 
-      {participant, members} ->
+      Map.has_key?(state.members, new) ->
+        {:reply, {:error, :nick_in_use}, state}
+
+      true ->
+        {participant, members} = Map.pop(state.members, old)
         participant = %{participant | nick: new, last_seen_at: DateTime.utc_now()}
         state = %{state | members: Map.put(members, new, participant)}
         broadcast(state, {:nick_changed, state.name, old, new})
@@ -307,10 +311,12 @@ defmodule Hangout.ChannelServer do
 
   def handle_call({:mark_bot, nick}, _from, state) do
     case Map.fetch(state.members, nick) do
+      {:ok, %{bot?: true}} ->
+        {:reply, :ok, state}
+
       {:ok, participant} ->
-        was_human = !participant.bot?
         participant = %{participant | bot?: true}
-        human_count = if was_human, do: state.human_count - 1, else: state.human_count
+        human_count = state.human_count - 1
         bot_count = state.bot_count + 1
         state = %{state | members: Map.put(state.members, nick, participant), human_count: human_count, bot_count: bot_count}
 

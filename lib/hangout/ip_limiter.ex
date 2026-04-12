@@ -4,20 +4,19 @@ defmodule Hangout.IPLimiter do
   Limits the number of simultaneous IRC connections from a single IP.
   """
 
+  use GenServer
+
   @table __MODULE__
   @max_per_ip Application.compile_env(:hangout, :max_connections_per_ip, 10)
 
-  def child_spec(_opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, []},
-      type: :worker
-    }
+  def start_link(_opts \\ []) do
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
-  def start_link do
+  @impl true
+  def init(_) do
     :ets.new(@table, [:named_table, :public, :set])
-    {:ok, self()}
+    {:ok, %{}}
   end
 
   @doc "Try to admit a connection from the given IP. Returns :ok or {:error, :too_many_connections}."

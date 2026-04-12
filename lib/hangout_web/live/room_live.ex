@@ -528,6 +528,10 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, expires_at: expires_at)
   end
 
+  defp apply_event(socket, {:user_quit, _channel, member, _reason}) do
+    assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+  end
+
   defp apply_event(socket, _event), do: socket
 
   # --- Private: helpers ---

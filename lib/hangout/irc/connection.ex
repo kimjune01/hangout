@@ -27,6 +27,7 @@ defmodule Hangout.IRC.Connection do
     :ip,
     :ping_timer,
     :ping_ref,
+    :ping_token,
     registered?: false,
     bot?: false,
     channels: MapSet.new(),
@@ -83,17 +84,22 @@ defmodule Hangout.IRC.Connection do
     {lines, rest} = split_lines(state.buffer <> to_string(data))
     state = %{state | buffer: rest}
 
-    state =
-      Enum.reduce(lines, state, fn line, acc ->
-        line = String.trim_trailing(line, "\r\n") |> String.trim_trailing("\n")
+    if byte_size(state.buffer) > 512 do
+      send_line(state, "ERROR :Input line too long\r\n")
+      {:stop, :normal, state}
+    else
+      state =
+        Enum.reduce(lines, state, fn line, acc ->
+          line = String.trim_trailing(line, "\r\n") |> String.trim_trailing("\n")
 
-        case handle_line(line, acc) do
-          {:noreply, new_state} -> new_state
-          {:stop, :normal, new_state} -> throw({:stop, new_state})
-        end
-      end)
+          case handle_line(line, acc) do
+            {:noreply, new_state} -> new_state
+            {:stop, :normal, new_state} -> throw({:stop, new_state})
+          end
+        end)
 
-    {:noreply, state}
+      {:noreply, state}
+    end
   catch
     {:stop, state} -> {:stop, :normal, state}
   end
@@ -122,7 +128,8 @@ defmodule Hangout.IRC.Connection do
     token = Base.encode16(:crypto.strong_rand_bytes(4), case: :lower)
     send_line(state, Parser.ping(token))
     ref = Process.send_after(self(), {:ping_timeout, token}, @ping_timeout)
-    {:noreply, %{state | ping_ref: ref}}
+    ping_timer = Process.send_after(self(), :send_ping, @ping_interval)
+    {:noreply, %{state | ping_ref: ref, ping_token: token, ping_timer: ping_timer}}
   end
 
   def handle_info({:ping_timeout, _token}, state) do
@@ -162,8 +169,7 @@ defmodule Hangout.IRC.Connection do
 
   defp handle_channel_event({:user_parted, channel, participant, reason}, state) do
     if participant.nick != state.nick do
-      msg = if reason, do: " :#{reason}", else: ""
-      send_line(state, Parser.user_cmd(participant.nick, participant.nick, "PART", "#{channel}#{msg}"))
+      send_line(state, Parser.part(participant.nick, channel, reason))
     end
     {:noreply, state}
   end
@@ -230,6 +236,17 @@ defmodule Hangout.IRC.Connection do
   defp handle_channel_event({:notice, channel, _from, text}, state) do
     send_line(state, Parser.server_msg("NOTICE", channel, text))
     {:noreply, state}
+  end
+
+  defp handle_channel_event({:user_quit, channel, participant, reason}, state) do
+    if participant.nick != state.nick do
+      send_line(state, Parser.quit(participant.nick, reason))
+      {:noreply, state}
+    else
+      state = %{state | channels: MapSet.delete(state.channels, channel)}
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
+      {:noreply, state}
+    end
   end
 
   defp handle_channel_event(_event, state), do: {:noreply, state}
@@ -359,9 +376,15 @@ defmodule Hangout.IRC.Connection do
     {:noreply, state}
   end
 
-  defp dispatch("PONG", _params, state) do
-    if state.ping_ref, do: Process.cancel_timer(state.ping_ref)
-    {:noreply, %{state | ping_ref: nil}}
+  defp dispatch("PONG", params, state) do
+    token = List.last(params)
+
+    if state.ping_ref && (state.ping_token == nil || token == state.ping_token) do
+      Process.cancel_timer(state.ping_ref)
+      {:noreply, %{state | ping_ref: nil, ping_token: nil}}
+    else
+      {:noreply, state}
+    end
   end
 
   defp dispatch("JOIN", [channels_str | _], state) do
@@ -432,6 +455,9 @@ defmodule Hangout.IRC.Connection do
                 {:error, :body_too_long} ->
                   send_line(state, Parser.numeric(404, state.nick, [channel_name, "Message too long"]))
 
+                {:error, :moderated} ->
+                  send_line(state, Parser.numeric(404, state.nick, [channel_name, "Cannot send to channel (+m)"]))
+
                 {:error, _} ->
                   :ok
               end
@@ -451,7 +477,7 @@ defmodule Hangout.IRC.Connection do
                 {:error, :body_too_long} ->
                   send_line(state, Parser.numeric(404, state.nick, [channel_name, "Message too long"]))
 
-                {:error, :cannot_send} ->
+                {:error, :moderated} ->
                   send_line(state, Parser.numeric(404, state.nick, [channel_name, "Cannot send to channel (+m)"]))
 
                 {:error, _} ->
@@ -502,6 +528,9 @@ defmodule Hangout.IRC.Connection do
 
       {:ok, topic} ->
         send_line(state, Parser.numeric(332, state.nick, [channel_name, topic]))
+
+      {:error, :no_such_channel} ->
+        send_line(state, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
     end
 
     {:noreply, state}
@@ -523,6 +552,9 @@ defmodule Hangout.IRC.Connection do
 
       {:error, :not_in_channel} ->
         send_line(state, Parser.numeric(442, state.nick, [channel_name, "You're not on that channel"]))
+
+      {:error, :no_such_channel} ->
+        send_line(state, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
     end
 
     {:noreply, state}
@@ -539,11 +571,14 @@ defmodule Hangout.IRC.Connection do
       {:error, :chanop_needed} ->
         send_line(state, Parser.numeric(482, state.nick, [channel_name, "You're not channel operator"]))
 
-      {:error, :not_in_channel} ->
+      {:error, :not_on_channel} ->
         send_line(
           state,
           Parser.numeric(441, state.nick, ["#{target} #{channel_name}", "They aren't on that channel"])
         )
+
+      {:error, :no_such_channel} ->
+        send_line(state, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
     end
 
     {:noreply, state}
@@ -551,6 +586,11 @@ defmodule Hangout.IRC.Connection do
     :exit, _ ->
       send_line(state, Parser.numeric(403, state.nick, [channel_name, "No such channel"]))
       {:noreply, state}
+  end
+
+  defp dispatch("KICK", _params, state) do
+    send_line(state, Parser.numeric(461, state.nick, ["KICK", "Not enough parameters"]))
+    {:noreply, state}
   end
 
   defp dispatch("MODE", [target | rest], state) do
@@ -584,7 +624,7 @@ defmodule Hangout.IRC.Connection do
     case ChannelServer.who(channel_name) do
       {:ok, who_list} ->
         for entry <- who_list do
-          prefix = if MapSet.member?(entry.modes, :o), do: "@", else: ""
+          prefix = if :o in entry.modes, do: "@", else: ""
 
           send_line(state, Parser.who_reply(state.nick, channel_name, entry.user, entry.nick, prefix, entry.realname))
         end

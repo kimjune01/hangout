@@ -4,7 +4,7 @@ defmodule Hangout.NickRegistry do
   """
 
   @registry __MODULE__
-  @nick_re ~r/^[A-Za-z][A-Za-z0-9_\-\[\]\{\}\\\|\^` ]{0,15}$/
+  alias Hangout.IRC.Parser
 
   def child_spec(_opts) do
     Registry.child_spec(keys: :unique, name: @registry)
@@ -13,7 +13,7 @@ defmodule Hangout.NickRegistry do
   @doc """
   Validates a nick against IRC conventions (max 16 chars).
   """
-  def valid?(nick) when is_binary(nick), do: Regex.match?(@nick_re, nick)
+  def valid?(nick) when is_binary(nick), do: Parser.valid_nick?(nick)
   def valid?(_), do: false
 
   @doc """
