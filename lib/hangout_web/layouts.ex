@@ -41,8 +41,8 @@ defmodule HangoutWeb.Layouts do
           }
 
           /* --- Layout --- */
-          .container { max-width: 960px; margin: 0 auto; padding: 1rem; }
-          .room-layout { display: flex; height: calc(100vh - 2rem); gap: 1rem; }
+          .container { max-width: 960px; margin: 0 auto; padding: 0.5rem 1rem; height: 100vh; display: flex; flex-direction: column; }
+          .room-layout { display: flex; flex: 1; gap: 1rem; min-height: 0; }
           .messages-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
           /* --- Messages --- */
