@@ -10,7 +10,7 @@ defmodule HangoutWeb.Layouts do
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="csrf-token" content={Phoenix.Controller.get_csrf_token()} />
         <title>Hangout</title>
-        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='80' fill='%237cc7b2'>#</text></svg>" />
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫧</text></svg>" />
         <script defer phx-track-static src="/assets/app.js"></script>
         <style>
           :root {
