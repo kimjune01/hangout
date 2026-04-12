@@ -1,0 +1,7 @@
+name: hangout
+description: chat.june.kim — ephemeral IRC chat on Lightsail
+runtime: go
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-go

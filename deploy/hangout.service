@@ -1,0 +1,21 @@
+[Unit]
+Description=Hangout ephemeral chat
+After=network.target
+
+[Service]
+Type=exec
+User=hangout
+Group=hangout
+WorkingDirectory=/opt/hangout
+ExecStart=/opt/hangout/bin/hangout start
+ExecStop=/opt/hangout/bin/hangout stop
+Restart=on-failure
+RestartSec=5
+Environment=MIX_ENV=prod
+Environment=PHX_HOST=chat.june.kim
+Environment=PORT=4000
+Environment=SECRET_KEY_BASE=GENERATE_ME
+Environment=IRC_PORT=6667
+
+[Install]
+WantedBy=multi-user.target

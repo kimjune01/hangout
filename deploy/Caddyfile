@@ -1,0 +1,3 @@
+chat.june.kim {
+	reverse_proxy localhost:4000
+}

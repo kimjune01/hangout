@@ -13,6 +13,17 @@ defmodule HangoutWeb.RoomLive do
     mod_token = Map.get(params, "mod")
     ttl_seconds = parse_ttl(Map.get(params, "ttl"))
 
+    # Check if room already exists and how many people are in it
+    room_population =
+      case Hangout.ChannelRegistry.lookup(channel_name) do
+        {:ok, _pid} ->
+          case ChannelServer.snapshot(channel_name) do
+            {:ok, snap} -> snap.human_count
+            _ -> 0
+          end
+        :error -> 0
+      end
+
     socket =
       assign(socket,
         channel_slug: slug,
@@ -34,6 +45,7 @@ defmodule HangoutWeb.RoomLive do
         ttl_seconds: ttl_seconds,
         mobile_members_open?: false,
         confirm_end?: false,
+        room_population: room_population,
         page_title: "##{slug}"
       )
 
@@ -227,6 +239,16 @@ defmodule HangoutWeb.RoomLive do
         <% else %>
           <div class="nick-prompt">
             <div class="room-name">{@channel_name}</div>
+            <div class="room-info">
+              <%= cond do %>
+                <% @room_population > 1 -> %>
+                  {@room_population} people here
+                <% @room_population == 1 -> %>
+                  1 person here
+                <% true -> %>
+                  Empty room
+              <% end %>
+            </div>
 
             <%= if f = @flash["error"] do %>
               <div class="flash error" style="max-width: 20rem; margin: 0 auto 1rem;">{f}</div>
