@@ -45,6 +45,7 @@ defmodule HangoutWeb.RoomLive do
         ttl_seconds: ttl_seconds,
         mobile_members_open?: false,
         confirm_end?: false,
+        asked_notifications?: false,
         room_population: room_population,
         page_title: "##{slug}"
       )
@@ -101,8 +102,20 @@ defmodule HangoutWeb.RoomLive do
         end
 
       case ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text) do
-        {:ok, _msg} -> {:noreply, socket}
-        {:error, reason} -> {:noreply, put_flash(socket, :error, human_error(reason))}
+        {:ok, _msg} ->
+          socket =
+            if not socket.assigns[:asked_notifications?] do
+              socket
+              |> assign(:asked_notifications?, true)
+              |> push_event("hangout:ask_notifications", %{})
+            else
+              socket
+            end
+
+          {:noreply, socket}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, human_error(reason))}
       end
     end
   end

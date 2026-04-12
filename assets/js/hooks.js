@@ -92,38 +92,79 @@ const Scroll = {
 };
 
 // --- Notifications Hook ---
-// Fires browser notifications for messages received while tab is hidden.
+// Three-step flow:
+// 1. User sends first message → server pushes "ask_notifications" event
+// 2. In-app banner asks "Get notified of new messages?" → user clicks Yes
+// 3. Browser permission dialog fires
+//
+// After permission granted, notifications fire when tab is hidden.
 
 const Notifications = {
   mounted() {
-    this.permissionRequested = false;
+    this.enabled = false;
+    this.hasSentMessage = false;
 
-    this.handleEvent("new_message_notification", (payload) =>
-      this.notify(payload)
-    );
-
-    // Allow click-to-request as fallback
-    this.el.addEventListener("click", async () => {
-      if ("Notification" in window && Notification.permission === "default") {
-        await Notification.requestPermission();
+    // Step 1: server tells us to show the ask banner after first message sent
+    this.handleEvent("hangout:ask_notifications", () => {
+      if (!("Notification" in window)) return;
+      if (Notification.permission === "granted") {
+        this.enabled = true;
+        return;
       }
+      if (Notification.permission === "denied") return;
+
+      // Show in-app banner
+      this.showBanner();
     });
+
+    // Incoming messages → fire notification if enabled and tab hidden
+    this.handleEvent("hangout:message", (payload) => this.notify(payload));
   },
 
-  async notify(payload) {
-    if (!("Notification" in window)) return;
+  showBanner() {
+    const banner = document.createElement("div");
+    banner.className = "notification-banner";
+    banner.innerHTML = `
+      <span>Get notified of new messages?</span>
+      <button class="notif-yes">Yes</button>
+      <button class="notif-no">No</button>
+    `;
+    banner.style.cssText =
+      "position:fixed;bottom:4rem;left:50%;transform:translateX(-50%);" +
+      "background:var(--panel-2);border:1px solid var(--border);border-radius:6px;" +
+      "padding:0.5rem 1rem;display:flex;align-items:center;gap:0.75rem;" +
+      "font-size:0.875rem;color:var(--text);z-index:100;";
 
-    if (Notification.permission === "default" && !this.permissionRequested) {
-      this.permissionRequested = true;
-      await Notification.requestPermission();
-    }
+    banner.querySelector(".notif-yes").style.cssText =
+      "background:var(--accent);color:var(--bg);border:none;padding:0.25rem 0.75rem;" +
+      "border-radius:4px;cursor:pointer;font-weight:600;";
 
-    if (Notification.permission !== "granted" || !document.hidden) return;
+    banner.querySelector(".notif-no").style.cssText =
+      "background:none;border:1px solid var(--border);color:var(--muted);" +
+      "padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer;";
 
-    const title = payload.channel
-      ? `#${payload.channel}`
-      : this.el.dataset.channel || "Hangout";
-    const body = `${payload.from || payload.nick}: ${(payload.body || "").slice(0, 100)}`;
+    banner.querySelector(".notif-yes").addEventListener("click", async () => {
+      banner.remove();
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") this.enabled = true;
+    });
+
+    banner.querySelector(".notif-no").addEventListener("click", () => {
+      banner.remove();
+    });
+
+    document.body.appendChild(banner);
+
+    // Auto-dismiss after 15 seconds
+    setTimeout(() => banner.remove(), 15000);
+  },
+
+  notify(payload) {
+    if (!this.enabled || !document.hidden) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    const title = payload.channel ? `#${payload.channel}` : "Hangout";
+    const body = `${payload.from || "someone"}: ${(payload.body || "").slice(0, 100)}`;
     const notification = new Notification(title, { body, tag: title });
     notification.onclick = () => window.focus();
   },
