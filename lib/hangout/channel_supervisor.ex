@@ -15,17 +15,4 @@ defmodule Hangout.ChannelSupervisor do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
-  @doc """
-  Start a new ChannelServer. Returns `{:ok, pid}` or `{:error, reason}`.
-  """
-  def start_channel(name, opts \\ []) do
-    Hangout.ChannelRegistry.ensure_started(name, opts)
-  end
-
-  @doc """
-  Find or create a channel. Returns `{:ok, pid}`.
-  """
-  def ensure_channel(channel_name, opts \\ []) do
-    Hangout.ChannelRegistry.ensure_started(channel_name, opts)
-  end
 end

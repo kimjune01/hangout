@@ -6,7 +6,7 @@ defmodule Hangout.IRC.Connection do
 
   use GenServer, restart: :temporary
 
-  alias Hangout.{ChannelServer, ChannelSupervisor, NickRegistry, Participant}
+  alias Hangout.{ChannelServer, ChannelRegistry, NickRegistry, Participant}
   alias Hangout.IRC.Parser
 
   require Logger
@@ -172,7 +172,7 @@ defmodule Hangout.IRC.Connection do
     send_line(state, Parser.kick(actor, channel, participant.nick, reason))
     if participant.nick == state.nick do
       state = %{state | channels: MapSet.delete(state.channels, channel)}
-      Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
       {:noreply, state}
     else
       {:noreply, state}
@@ -206,14 +206,14 @@ defmodule Hangout.IRC.Connection do
     send_line(state, Parser.server_msg("NOTICE", channel, "Room ended: #{reason}"))
     send_line(state, Parser.part(state.nick, channel, reason))
     state = %{state | channels: MapSet.delete(state.channels, channel)}
-    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+    Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
     {:noreply, state}
   end
 
   defp handle_channel_event({:room_expired, channel}, state) do
     send_line(state, Parser.server_msg("NOTICE", channel, "Room expired"))
     state = %{state | channels: MapSet.delete(state.channels, channel)}
-    Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+    Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
     {:noreply, state}
   end
 
@@ -243,7 +243,7 @@ defmodule Hangout.IRC.Connection do
         :exit, _ -> :ok
       end
 
-      Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
     end
 
     if state.nick do
@@ -395,7 +395,7 @@ defmodule Hangout.IRC.Connection do
             :exit, _ -> :ok
           end
 
-          Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel_name}")
+          Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel_name))
           send_line(acc, Parser.user_cmd(state.nick, state.user, "PART", channel_name))
           %{acc | channels: MapSet.delete(acc.channels, channel_name)}
         else
@@ -637,7 +637,7 @@ defmodule Hangout.IRC.Connection do
         :exit, _ -> :ok
       end
 
-      Phoenix.PubSub.unsubscribe(Hangout.PubSub, "channel:#{channel}")
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(channel))
     end
 
     send_line(state, "ERROR :Closing Link: #{state.peername} (Quit: #{message})\r\n")
@@ -774,7 +774,7 @@ defmodule Hangout.IRC.Connection do
             acc
 
           true ->
-            case ChannelSupervisor.ensure_channel(channel_name) do
+            case ChannelRegistry.ensure_started(channel_name) do
               {:ok, _pid} ->
                 participant =
                   Participant.new(state.nick, :irc, self(),
@@ -785,7 +785,7 @@ defmodule Hangout.IRC.Connection do
 
                 case ChannelServer.join(channel_name, participant) do
                   {:ok, info, token} ->
-                    Phoenix.PubSub.subscribe(Hangout.PubSub, "channel:#{channel_name}")
+                    Phoenix.PubSub.subscribe(Hangout.PubSub, ChannelServer.topic_name(channel_name))
                     send_line(acc, Parser.user_cmd(state.nick, state.user, "JOIN", channel_name))
 
                     case info.topic do
@@ -793,7 +793,7 @@ defmodule Hangout.IRC.Connection do
                       topic -> send_line(acc, Parser.numeric(332, state.nick, [channel_name, topic]))
                     end
 
-                    nicks_with_prefix = format_names(channel_name, info.members)
+                    nicks_with_prefix = format_names_from_members(info.members)
                     send_line(acc, Parser.names_reply(state.nick, channel_name, nicks_with_prefix))
                     send_line(acc, Parser.end_of_names(state.nick, channel_name))
                     send_scrollback(acc, channel_name, info.buffer)
@@ -886,10 +886,6 @@ defmodule Hangout.IRC.Connection do
   end
 
   defp send_scrollback(_state, _channel_name, _buffer), do: :ok
-
-  defp format_names(_channel_name, members) when is_list(members) do
-    format_names_from_members(members)
-  end
 
   defp format_names_from_members(members) do
     Enum.map(members, fn member ->

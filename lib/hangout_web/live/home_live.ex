@@ -1,8 +1,7 @@
 defmodule HangoutWeb.HomeLive do
   use HangoutWeb, :live_view
 
-  @adjectives ~w(quiet green bright calm swift bold dark warm cool soft)
-  @nouns ~w(fox lamp river cloud storm wind leaf spark wave flame)
+  alias Hangout.Naming
 
   @impl true
   def mount(_params, _session, socket) do
@@ -69,18 +68,6 @@ defmodule HangoutWeb.HomeLive do
     """
   end
 
-  defp generate_slug do
-    adj = Enum.random(@adjectives)
-    noun = Enum.random(@nouns)
-    num = :rand.uniform(99)
-    "#{adj}-#{noun}-#{num}"
-  end
-
-  defp slugify(name) do
-    name
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9-]/, "-")
-    |> String.replace(~r/-+/, "-")
-    |> String.trim("-")
-  end
+  defp generate_slug, do: Naming.random_slug()
+  defp slugify(name), do: Naming.slugify(name)
 end

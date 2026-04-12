@@ -3,8 +3,7 @@ defmodule HangoutWeb.RoomLive do
 
   alias Hangout.{ChannelServer, NickRegistry, Participant}
 
-  @adjectives ~w(quiet green bright calm swift bold dark warm cool soft)
-  @nouns ~w(fox lamp river cloud storm wind leaf spark wave flame)
+  alias Hangout.Naming
 
   # --- Mount & Lifecycle ---
 
@@ -106,7 +105,7 @@ defmodule HangoutWeb.RoomLive do
       {:noreply, assign(socket, nick: new_nick)}
     else
       false -> {:noreply, put_flash(socket, :error, "Invalid nick")}
-      {:error, :in_use} -> {:noreply, put_flash(socket, :error, "Nick already in use")}
+      {:error, :nick_in_use} -> {:noreply, put_flash(socket, :error, "Nick already in use")}
       _ -> {:noreply, put_flash(socket, :error, "Could not change nick")}
     end
   end
@@ -546,11 +545,7 @@ defmodule HangoutWeb.RoomLive do
     Enum.reject(members, &(&1.nick == nick))
   end
 
-  defp generate_nick do
-    adj = Enum.random(@adjectives)
-    noun = Enum.random(@nouns)
-    "#{adj}-#{noun}"
-  end
+  defp generate_nick, do: Naming.random_nick()
 
   defp format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
   defp format_time(_), do: ""
@@ -573,7 +568,6 @@ defmodule HangoutWeb.RoomLive do
   end
 
   defp human_error(:nick_in_use), do: "Nick already in use"
-  defp human_error(:in_use), do: "Nick already in use"
   defp human_error(:channel_full), do: "Room is full"
   defp human_error(:invite_only), do: "Room is locked"
   defp human_error(:too_many_channels), do: "Too many active rooms"
