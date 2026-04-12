@@ -67,20 +67,38 @@ defmodule HangoutWeb.Layouts do
           .message.action { color: var(--accent); }
           .message.notice { color: var(--accent-2); }
 
-          /* --- Sidebar --- */
-          .sidebar {
-            width: 200px;
-            background: var(--panel);
-            border-radius: 6px;
+          /* --- Member toggle + drawer (inside messages panel) --- */
+          .member-toggle {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: var(--panel-2);
             border: 1px solid var(--border);
-            padding: 0.75rem;
-            overflow-y: auto;
-            flex-shrink: 0;
+            color: var(--muted);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            z-index: 5;
           }
-          .sidebar h3 { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
-          .sidebar .nick-entry { padding: 3px 0; font-size: 0.875rem; display: flex; align-items: center; gap: 0.25rem; }
-          .sidebar .nick-entry .bot-badge { font-size: 0.6875rem; color: var(--muted); font-family: var(--font-mono); }
-          .sidebar .nick-entry .op-badge { color: var(--accent-2); font-family: var(--font-mono); }
+          .member-toggle:hover { color: var(--text); }
+          .member-drawer {
+            position: absolute;
+            top: 2rem;
+            right: 0.5rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            max-height: 50%;
+            overflow-y: auto;
+            z-index: 10;
+            min-width: 140px;
+          }
+          .nick-entry { padding: 3px 0; font-size: 0.875rem; display: flex; align-items: center; gap: 0.25rem; }
+          .nick-entry .bot-badge { font-size: 0.6875rem; color: var(--muted); font-family: var(--font-mono); }
+          .nick-entry .op-badge { color: var(--accent-2); font-family: var(--font-mono); }
 
           /* --- Input bar --- */
           .input-bar { display: flex; align-items: center; gap: 0; padding: 0.5rem 0; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); }
@@ -280,27 +298,8 @@ defmodule HangoutWeb.Layouts do
           .room-ended h2 { font-family: var(--font-mono); color: var(--muted); margin-bottom: 1rem; }
           .room-ended a { color: var(--accent); }
 
-          /* --- Mobile toggle --- */
-          .mobile-member-toggle {
-            display: none;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            color: var(--muted);
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8125rem;
-            font-family: var(--font-mono);
-            cursor: pointer;
-          }
-          .desktop-count { font-family: var(--font-mono); }
-
           @media (max-width: 640px) {
             .container { padding: 0.5rem; }
-            .sidebar { display: none; }
-            .sidebar.mobile-open { display: block; width: 100%; position: absolute; top: 3rem; right: 0.5rem; z-index: 10; max-width: 200px; }
-            .room-layout { flex-direction: column; }
-            .mobile-member-toggle { display: inline-block; }
-            .desktop-count { display: none; }
             .message { max-width: none; }
           }
         </style>

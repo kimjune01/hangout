@@ -307,10 +307,6 @@ defmodule HangoutWeb.RoomLive do
                 expires {DateTime.to_iso8601(@expires_at)}
               </span>
             <% end %>
-            <button class="mobile-member-toggle" phx-click="toggle_members">
-              {length(@participants)} in room
-            </button>
-            <span class="desktop-count member-count">{length(@participants)} in room</span>
           </div>
         </div>
 
@@ -322,7 +318,7 @@ defmodule HangoutWeb.RoomLive do
         <% end %>
 
         <div class="room-layout">
-          <div class="messages-panel">
+          <div class="messages-panel" style="position: relative;">
             <div class="messages" id="messages" phx-hook="Scroll">
               <%= for msg <- @messages do %>
                 <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
@@ -338,6 +334,29 @@ defmodule HangoutWeb.RoomLive do
                       {msg.body}
                     <% _ -> %>
                       <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
+                  <% end %>
+                </div>
+              <% end %>
+
+              <button class="member-toggle" phx-click="toggle_members">
+                {length(@participants)} in room
+              </button>
+
+              <%= if @mobile_members_open? do %>
+                <div class="member-drawer">
+                  <%= for member <- @participants do %>
+                    <div class="nick-entry">
+                      <%= if :o in (member.modes || []) do %>
+                        <span class="op-badge">@</span>
+                      <% end %>
+                      <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
+                      <%= if member.bot? do %>
+                        <span class="bot-badge">[bot]</span>
+                      <% end %>
+                      <%= if @moderator? and member.nick != @nick do %>
+                        <button class="kick-btn" phx-click="kick_user" phx-value-nick={member.nick} title="Kick">x</button>
+                      <% end %>
+                    </div>
                   <% end %>
                 </div>
               <% end %>
@@ -382,24 +401,6 @@ defmodule HangoutWeb.RoomLive do
                   <% end %>
                 </div>
               </details>
-            <% end %>
-          </div>
-
-          <div class={"sidebar#{if @mobile_members_open?, do: " mobile-open", else: ""}"}>
-            <h3>Members ({length(@participants)})</h3>
-            <%= for member <- @participants do %>
-              <div class="nick-entry">
-                <%= if :o in (member.modes || []) do %>
-                  <span class="op-badge">@</span>
-                <% end %>
-                <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
-                <%= if member.bot? do %>
-                  <span class="bot-badge">[bot]</span>
-                <% end %>
-                <%= if @moderator? and member.nick != @nick do %>
-                  <button class="kick-btn" phx-click="kick_user" phx-value-nick={member.nick} title="Kick">x</button>
-                <% end %>
-              </div>
             <% end %>
           </div>
         </div>
