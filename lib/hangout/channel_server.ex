@@ -301,8 +301,8 @@ defmodule Hangout.ChannelServer do
   def handle_call({:mark_bot, nick}, _from, state) do
     case Map.fetch(state.members, nick) do
       {:ok, participant} ->
-        participant = %{participant | bot?: true}
         was_human = !participant.bot?
+        participant = %{participant | bot?: true}
         human_count = if was_human, do: state.human_count - 1, else: state.human_count
         bot_count = state.bot_count + 1
         state = %{state | members: Map.put(state.members, nick, participant), human_count: human_count, bot_count: bot_count}
