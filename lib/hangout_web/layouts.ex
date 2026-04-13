@@ -123,7 +123,7 @@ defmodule HangoutWeb.Layouts do
           .md-body blockquote { border-left: 2px solid var(--border); padding-left: 0.5rem; color: var(--muted); margin: 0.25rem 0; }
           .md-body ul, .md-body ol { margin: 0.25rem 0 0.25rem 1.5rem; }
           .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { font-size: 1rem; font-weight: 600; margin: 0.25rem 0; }
-          .copy-md {
+          .copy-md, .forward-btn {
             background: none;
             border: none;
             color: var(--dim);
@@ -136,8 +136,8 @@ defmodule HangoutWeb.Layouts do
             opacity: 0;
             transition: opacity 0.15s;
           }
-          .message:hover .copy-md { opacity: 1; }
-          .copy-md:hover { color: var(--accent); }
+          .message:hover .copy-md, .message:hover .forward-btn { opacity: 1; }
+          .copy-md:hover, .forward-btn:hover { color: var(--accent); }
 
           /* --- Collapse long messages --- */
           .message.collapsed {
@@ -202,6 +202,14 @@ defmodule HangoutWeb.Layouts do
 
           /* --- Input bar --- */
           .input-bar { display: flex; align-items: center; gap: 0; padding: var(--sp-2) 0; padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom, 0px)); }
+          .input-bar.draft-mode {
+            border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--border));
+            border-radius: 6px;
+            padding-left: var(--sp-2);
+            padding-right: var(--sp-2);
+            background: color-mix(in srgb, var(--accent) 8%, transparent);
+          }
+          .input-bar.draft-mode .nick-label { display: none; }
           .input-bar .nick-label {
             font-family: var(--font-mono);
             color: var(--muted);
@@ -224,6 +232,22 @@ defmodule HangoutWeb.Layouts do
             transition: border-bottom-color 0.2s ease;
           }
           .input-bar input:focus { border-bottom-color: var(--accent); }
+          .input-bar.draft-mode input { border-bottom-color: var(--accent); }
+          .draft-label {
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: var(--sp-2);
+            white-space: nowrap;
+          }
+          .draft-label::after { content: " >"; color: var(--dim); }
+          .draft-discard {
+            color: var(--dim);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+          }
+          .draft-discard:hover { color: var(--danger); }
           .voice-btn {
             background: none;
             border: 1px solid var(--border);
@@ -562,6 +586,7 @@ defmodule HangoutWeb.Layouts do
             font-size: 0.75rem;
             margin-top: 0.125rem;
           }
+          .info-modal .agent-invite-actions { margin-top: 0.25rem; }
 
           @keyframes fade-in {
             from { opacity: 0; transform: translateY(4px); }

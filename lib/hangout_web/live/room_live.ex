@@ -56,7 +56,10 @@ defmodule HangoutWeb.RoomLive do
         room_members: room_members,
         page_title: "##{slug}",
         send_error: nil,
-        info_open?: false
+        info_open?: false,
+        agent_connected?: false,
+        agent_token: nil,
+        agent_token_url: nil
       )
 
     {:ok, socket}
@@ -70,6 +73,7 @@ defmodule HangoutWeb.RoomLive do
   @impl true
   def terminate(_reason, socket) do
     if socket.assigns[:joined?] do
+      revoke_current_agent(socket)
       ChannelServer.part(socket.assigns.channel_name, socket.assigns.nick, "left")
       NickRegistry.unregister(socket.assigns.nick)
     end
@@ -100,8 +104,9 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
-  def handle_event("send_message", %{"body" => body}, socket) do
+  def handle_event("send_message", %{"body" => body} = params, socket) do
     body = String.trim(body || "")
+    agent_draft? = params["agent_draft"] in ["true", "1", true]
 
     if body == "" or not socket.assigns.joined? do
       {:noreply, socket}
@@ -118,7 +123,7 @@ defmodule HangoutWeb.RoomLive do
               {:privmsg, body}
             end
 
-          case ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text) do
+          case send_room_message(socket, kind, text, agent_draft?) do
             {:ok, _msg} ->
               socket =
                 socket
@@ -147,11 +152,20 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("change_nick", %{"nick" => new_nick}, socket) do
     new_nick = NickRegistry.normalize(new_nick)
+    old_nick = socket.assigns.nick
 
     with true <- NickRegistry.valid?(new_nick),
-         :ok <- NickRegistry.change(socket.assigns.nick, new_nick, %{transport: :liveview}),
-         :ok <- ChannelServer.change_nick(socket.assigns.channel_name, socket.assigns.nick, new_nick) do
-      {:noreply, assign(socket, nick: new_nick)}
+         :ok <- NickRegistry.change(old_nick, new_nick, %{transport: :liveview}),
+         :ok <- ChannelServer.change_nick(socket.assigns.channel_name, old_nick, new_nick) do
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, old_nick))
+      Phoenix.PubSub.subscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, new_nick))
+
+      socket =
+        socket
+        |> revoke_current_agent()
+        |> assign(nick: new_nick, agent_connected?: false, agent_token: nil, agent_token_url: nil)
+
+      {:noreply, socket}
     else
       false -> {:noreply, put_flash(socket, :error, "Invalid nick")}
       {:error, :nick_in_use} -> {:noreply, put_flash(socket, :error, "Nick already in use")}
@@ -237,8 +251,10 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("reset_nick", _params, socket) do
     if socket.assigns.joined? do
+      revoke_current_agent(socket)
       ChannelServer.part(socket.assigns.channel_name, socket.assigns.nick, "changing name")
       NickRegistry.unregister(socket.assigns.nick)
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, socket.assigns.nick))
     end
 
     # Refresh guest list for re-entry screen
@@ -254,8 +270,61 @@ defmodule HangoutWeb.RoomLive do
 
     socket =
       socket
-      |> assign(joined?: false, nick: nil, participants: [], messages: [], room_members: fresh_members)
+      |> assign(
+        joined?: false,
+        nick: nil,
+        participants: [],
+        messages: [],
+        room_members: fresh_members,
+        agent_connected?: false,
+        agent_token: nil,
+        agent_token_url: nil
+      )
       |> push_event("hangout:nick_clear", %{})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("generate_agent_token", _params, socket) do
+    if socket.assigns.joined? do
+      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
+        {:ok, token} ->
+          {:noreply,
+           assign(socket,
+             agent_connected?: true,
+             agent_token: token,
+             agent_token_url: agent_token_url(socket, token)
+           )}
+
+        {:error, :active_token_exists} ->
+          {:noreply,
+           socket
+           |> assign(agent_connected?: true)
+           |> put_flash(:error, "An agent invite is already active for this nick.")}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, human_error(reason))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("revoke_agent_token", _params, socket) do
+    socket = revoke_current_agent(socket)
+    {:noreply, assign(socket, agent_connected?: false, agent_token: nil, agent_token_url: nil)}
+  end
+
+  def handle_event("forward_to_agent", %{"msg-id" => id}, socket) do
+    with true <- socket.assigns.agent_connected?,
+         token when is_binary(token) <- socket.assigns.agent_token,
+         {:ok, msg} <- find_message(socket.assigns.messages, id) do
+      token_hash = Hangout.AgentToken.hash_token(token)
+      agent_topic = "agent:" <> Base.encode16(token_hash, case: :lower)
+      payload = build_forward_payload(socket, msg)
+
+      Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic, {:hangout_event, {:forward, payload}})
+    end
 
     {:noreply, socket}
   end
@@ -340,6 +409,11 @@ defmodule HangoutWeb.RoomLive do
   # --- PubSub + direct messages ---
 
   @impl true
+  def handle_info({:agent_draft, %{body: body}}, socket) do
+    {:noreply, push_event(socket, "hangout:agent_draft", %{body: body, nick: socket.assigns.nick})}
+  end
+
+  @impl true
   def handle_info({:voice_signal, from, signal}, socket) do
     {:noreply, push_event(socket, "voice:signal", %{from: from, signal: signal})}
   end
@@ -401,7 +475,12 @@ defmodule HangoutWeb.RoomLive do
           </div>
 
           <%= if @info_open? do %>
-            <HangoutWeb.InfoModal.info_modal legal_url={@legal_url} />
+            <HangoutWeb.InfoModal.info_modal
+              legal_url={@legal_url}
+              agent_token_url={@agent_token_url}
+              agent_connected?={@agent_connected?}
+              nick={@nick}
+            />
           <% end %>
         </header>
 
@@ -443,7 +522,10 @@ defmodule HangoutWeb.RoomLive do
                     <span class="time" data-utc={DateTime.to_iso8601(msg.at)}>{format_time(msg.at)}</span>
                     <%= case msg.kind do %>
                       <% :privmsg -> %>
-                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
+                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{display_nick(msg)}:</span>
+                        <%= if @agent_connected? do %>
+                          <button class="forward-btn" phx-click="forward_to_agent" phx-value-msg-id={msg.id} title="Forward to agent" aria-label="Forward to agent">→🤖</button>
+                        <% end %>
                         <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
                           <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy markdown" aria-label="Copy">📋</button>
                           <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
@@ -451,13 +533,13 @@ defmodule HangoutWeb.RoomLive do
                           {msg.body}
                         <% end %>
                       <% :action -> %>
-                        * <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}</span> {msg.body}
+                        * <span class="nick" style={"color: #{nick_color(msg.from)}"}>{display_nick(msg)}</span> {msg.body}
                       <% :notice -> %>
                         -<span class="nick">{msg.from}</span>- {msg.body}
                       <% :system -> %>
                         {msg.body}
                       <% _ -> %>
-                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
+                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{display_nick(msg)}:</span> {msg.body}
                     <% end %>
                   </div>
                 <% end %>
@@ -487,7 +569,7 @@ defmodule HangoutWeb.RoomLive do
               <% end %>
             </div>
 
-            <div class="input-bar">
+            <div class="input-bar" id="input-bar">
               <%= if @joined? do %>
                 <%= if @voice_enabled? do %>
                   <%= if @in_voice? do %>
@@ -497,7 +579,9 @@ defmodule HangoutWeb.RoomLive do
                   <% end %>
                 <% end %>
                 <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
-                <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
+                <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" data-nick={@nick} style="display: flex; flex: 1; align-items: center;">
+                  <span class="draft-label" hidden></span>
+                  <input type="hidden" name="agent_draft" value="false" disabled />
                   <input
                     type="text"
                     name="body"
@@ -509,6 +593,7 @@ defmodule HangoutWeb.RoomLive do
                     aria-label="Message"
                     phx-hook="AutoFocus"
                   />
+                  <button type="button" class="draft-discard" hidden aria-label="Discard agent draft">✕</button>
                   <button type="submit" aria-label="Send">↑</button>
                 </form>
               <% else %>
@@ -592,6 +677,7 @@ defmodule HangoutWeb.RoomLive do
         case ChannelServer.join(channel_name, participant, join_opts) do
           {:ok, snapshot, token} ->
             Phoenix.PubSub.subscribe(Hangout.PubSub, ChannelServer.topic_name(channel_name))
+            Phoenix.PubSub.subscribe(Hangout.PubSub, agent_draft_topic(channel_name, nick))
 
             moderator? =
               token != nil or
@@ -818,6 +904,66 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
+  defp send_room_message(socket, _kind, text, true) do
+    ChannelServer.agent_message(socket.assigns.channel_name, socket.assigns.nick, text)
+  end
+
+  defp send_room_message(socket, kind, text, false) do
+    ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text)
+  end
+
+  defp revoke_current_agent(socket) do
+    cond do
+      is_binary(socket.assigns[:agent_token]) ->
+        Hangout.AgentToken.revoke(socket.assigns.agent_token)
+        socket
+
+      socket.assigns[:agent_connected?] and socket.assigns[:joined?] ->
+        Hangout.AgentToken.revoke_for_nick(socket.assigns.channel_name, socket.assigns.nick)
+        socket
+
+      true ->
+        socket
+    end
+  end
+
+  defp agent_token_url(socket, token) do
+    path = "/#{socket.assigns.channel_slug}/agent/#{token}/events"
+
+    HangoutWeb.Endpoint.url()
+    |> URI.merge(path)
+    |> to_string()
+  end
+
+  defp agent_draft_topic(channel_name, nick), do: "agent_draft:#{channel_name}:#{nick}"
+
+  defp find_message(messages, id) do
+    case Enum.find(messages, &(to_string(&1.id) == to_string(id))) do
+      nil -> :error
+      msg -> {:ok, msg}
+    end
+  end
+
+  defp build_forward_payload(socket, msg) do
+    %{
+      "id" => "fwd_#{System.unique_integer([:positive])}",
+      "from" => %{"nick" => socket.assigns.nick, "agent" => false},
+      "target" => serialize_agent_message(msg),
+      "context" => socket.assigns.messages |> Enum.take(-20) |> Enum.map(&serialize_agent_message/1),
+      "requires_approval" => true
+    }
+  end
+
+  defp serialize_agent_message(msg) do
+    %{
+      "id" => msg.id,
+      "from" => %{"nick" => msg.from, "agent" => Map.get(msg, :agent, false)},
+      "body" => msg.body,
+      "kind" => to_string(msg.kind),
+      "at" => DateTime.to_iso8601(msg.at)
+    }
+  end
+
   defp generate_nick, do: Naming.random_nick()
 
   defp format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M")
@@ -827,6 +973,10 @@ defmodule HangoutWeb.RoomLive do
   defp message_class(%{kind: :action}), do: "action"
   defp message_class(%{kind: :notice}), do: "notice"
   defp message_class(_), do: ""
+
+  defp display_nick(msg) do
+    if Map.get(msg, :agent, false), do: msg.from <> "🤖", else: msg.from
+  end
 
   # Nick color palettes — 12 hues, each passing 4.5:1 contrast on its background
   # Dark mode: light colors on #11100f

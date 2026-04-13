@@ -10,6 +10,7 @@ defmodule Hangout.Application do
       Hangout.ChannelRegistry,
       Hangout.NickRegistry,
       Hangout.ChannelSupervisor,
+      Hangout.AgentToken,
       Hangout.IPLimiter,
       Hangout.IRC.Listener,
       HangoutWeb.Endpoint

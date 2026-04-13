@@ -404,11 +404,57 @@ const MessageForm = {
   mounted() {
     this.notificationsEnabled = false;
     this.unreadCount = 0;
+    this.draftMode = false;
     const h1 = document.querySelector("h1");
     this.baseTitle = h1 ? h1.textContent.trim() : document.title;
     document.title = this.baseTitle;
     const input = this.el.querySelector("input[name=body]");
+    const draftFlag = this.el.querySelector("input[name=agent_draft]");
+    const draftLabel = this.el.querySelector(".draft-label");
+    const discard = this.el.querySelector(".draft-discard");
+    const inputBar = this.el.closest(".input-bar");
     if (input) input.placeholder = randomPlaceholder();
+
+    const clearDraft = () => {
+      this.draftMode = false;
+      if (inputBar) inputBar.classList.remove("draft-mode");
+      if (draftFlag) {
+        draftFlag.value = "false";
+        draftFlag.disabled = true;
+      }
+      if (draftLabel) {
+        draftLabel.hidden = true;
+        draftLabel.textContent = "";
+      }
+      if (discard) discard.hidden = true;
+    };
+
+    const enterDraft = ({ body, nick }) => {
+      this.draftMode = true;
+      if (inputBar) inputBar.classList.add("draft-mode");
+      if (draftFlag) {
+        draftFlag.value = "true";
+        draftFlag.disabled = false;
+      }
+      if (draftLabel) {
+        draftLabel.textContent = `${nick || this.el.dataset.nick || ""}🤖`;
+        draftLabel.hidden = false;
+      }
+      if (discard) discard.hidden = false;
+      if (input) {
+        input.value = body || "";
+        input.focus();
+      }
+    };
+
+    if (discard) {
+      discard.addEventListener("click", () => {
+        if (input) input.value = "";
+        clearDraft();
+      });
+    }
+
+    this.handleEvent("hangout:agent_draft", enterDraft);
 
     // Clear unread count when tab becomes visible
     document.addEventListener("visibilitychange", () => {
@@ -423,6 +469,7 @@ const MessageForm = {
       if (input) {
         requestAnimationFrame(() => {
           input.value = "";
+          clearDraft();
           if (Math.random() < 0.2) input.placeholder = randomPlaceholder(input.placeholder);
         });
       }

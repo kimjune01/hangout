@@ -1,6 +1,11 @@
 defmodule HangoutWeb.InfoModal do
   use Phoenix.Component
 
+  attr :legal_url, :string, default: nil
+  attr :agent_token_url, :string, default: nil
+  attr :agent_connected?, :boolean, default: false
+  attr :nick, :string, default: nil
+
   def info_modal(assigns) do
     ~H"""
     <div class="info-backdrop" phx-click="close_info"></div>
@@ -26,6 +31,24 @@ defmodule HangoutWeb.InfoModal do
           <button onclick="if(confirm('This will forget your nick and generate a new identity. Continue?')){localStorage.removeItem('hangout_keypair');localStorage.removeItem('hangout_nick');window.location.reload()}">Abandon nick &amp; start over</button>
           <div class="hint">Generates a new identity. Your old nick becomes available for anyone.</div>
         </li>
+        <%= if @nick do %>
+          <li>
+            <button phx-click="generate_agent_token">Invite your agent</button>
+            <%= if @agent_token_url do %>
+              <div class="agent-invite-actions">
+                <button onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓ copied'; setTimeout(() => this.textContent='Copy agent URL', 2000) })"}>Copy agent URL</button>
+              </div>
+            <% end %>
+            <div class="hint">
+              Your agent will see room messages and respond from your working directory. Don't connect from directories with secrets you wouldn't share.
+            </div>
+            <%= if @agent_connected? do %>
+              <div class="agent-invite-actions">
+                <button phx-click="revoke_agent_token">Disconnect agent</button>
+              </div>
+            <% end %>
+          </li>
+        <% end %>
         <%= if @legal_url do %>
           <li>
             <a href={@legal_url} target="_blank">Terms &amp; privacy</a>

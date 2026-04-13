@@ -4,7 +4,7 @@ defmodule Hangout.Message do
   """
 
   @enforce_keys [:id, :at, :from, :target, :kind, :body]
-  defstruct [:id, :at, :from, :target, :kind, :body]
+  defstruct [:id, :at, :from, :target, :kind, :body, agent: false]
 
   @type kind :: :privmsg | :notice | :action | :system
 
@@ -14,7 +14,8 @@ defmodule Hangout.Message do
           from: String.t(),
           target: String.t(),
           kind: kind(),
-          body: String.t()
+          body: String.t(),
+          agent: boolean()
         }
 
   @doc """

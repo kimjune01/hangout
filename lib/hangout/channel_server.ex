@@ -3,7 +3,7 @@ defmodule Hangout.ChannelServer do
 
   use GenServer, restart: :temporary
 
-  alias Hangout.{ChannelRegistry, Message, Participant, RateLimiter}
+  alias Hangout.{AgentToken, ChannelRegistry, Message, Participant, RateLimiter, SecretFilter}
 
   require Logger
 
@@ -52,6 +52,7 @@ defmodule Hangout.ChannelServer do
   def part(name, nick, reason \\ "leaving"), do: call(name, {:part, nick, reason})
   def quit(name, nick, reason \\ "quit"), do: part(name, nick, reason)
   def message(name, nick, kind, body), do: call(name, {:message, nick, kind, body})
+  def agent_message(name, owner_nick, body), do: call(name, {:agent_message, owner_nick, body})
   def change_nick(name, old, new), do: call(name, {:nick, old, new})
   def topic(name), do: call(name, :topic)
   def set_topic(name, nick, topic, token \\ nil), do: call(name, {:set_topic, nick, topic, token})
@@ -181,6 +182,7 @@ defmodule Hangout.ChannelServer do
         |> append_buffer(msg)
 
       broadcast(state, {:message, state.name, msg})
+      route_mentions(state, msg)
       {:reply, {:ok, msg}, state}
     else
       {:member, nil} ->
@@ -192,6 +194,21 @@ defmodule Hangout.ChannelServer do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call({:agent_message, owner_nick, body}, _from, state) do
+    with :ok <- can_agent_send?(state),
+         :ok <- validate_body(body),
+         {:ok, body} <- SecretFilter.check(body) do
+      msg = build_message(state, owner_nick <> "🤖", :privmsg, body, true)
+      state = append_buffer(state, msg)
+
+      broadcast(state, {:message, state.name, msg})
+      {:reply, {:ok, msg}, state}
+    else
+      {:secret, kind} -> {:reply, {:secret, kind}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -502,8 +519,20 @@ defmodule Hangout.ChannelServer do
     end
   end
 
-  defp build_message(state, nick, kind, body) do
-    %Message{id: state.next_message_id, at: DateTime.utc_now(), from: nick, target: state.name, kind: kind, body: body}
+  defp can_agent_send?(state) do
+    if state.modes[:m], do: {:error, :agent_muted}, else: :ok
+  end
+
+  defp build_message(state, nick, kind, body, agent \\ false) do
+    %Message{
+      id: state.next_message_id,
+      at: DateTime.utc_now(),
+      from: nick,
+      target: state.name,
+      kind: kind,
+      body: body,
+      agent: agent
+    }
   end
 
   defp append_buffer(state, msg) do
@@ -642,6 +671,7 @@ defmodule Hangout.ChannelServer do
 
   defp remove_member(state, nick) do
     was_in_voice = MapSet.member?(state.voice_participants, nick)
+    AgentToken.revoke_for_nick(state.name, nick)
 
     state =
       case Map.pop(state.monitor_refs, nick) do
@@ -688,6 +718,53 @@ defmodule Hangout.ChannelServer do
   defp broadcast(state, event) do
     Phoenix.PubSub.broadcast(Hangout.PubSub, topic_name(state.name), {:hangout_event, event})
   end
+
+  defp route_mentions(_state, %Message{agent: true}), do: :ok
+
+  defp route_mentions(state, %Message{kind: kind} = msg) when kind in [:privmsg, :action] do
+    body = strip_backtick_spans(msg.body)
+
+    state.name
+    |> AgentToken.active_for_room()
+    |> Enum.filter(&mentions_owner?(body, &1.owner_nick))
+    |> Enum.each(fn metadata ->
+      event = {
+        :hangout_event,
+        {:mention,
+         %{
+           "id" => msg.id,
+           "from" => %{"nick" => msg.from, "agent" => false},
+           "body" => msg.body,
+           "at" => DateTime.to_iso8601(msg.at)
+         }}
+      }
+
+      Phoenix.PubSub.broadcast(Hangout.PubSub, AgentToken.agent_topic(metadata.token_hash), event)
+    end)
+  end
+
+  defp route_mentions(_state, _msg), do: :ok
+
+  defp mentions_owner?(body, owner_nick) do
+    escaped = Regex.escape(owner_nick)
+    Regex.match?(~r/(^|[^\p{L}\p{N}_])@#{escaped}🤖(?=$|[^\p{L}\p{N}_])/iu, body)
+  end
+
+  defp strip_backtick_spans(body), do: strip_backtick_spans(body, false, "")
+
+  defp strip_backtick_spans(<<"`", rest::binary>>, in_code?, acc) do
+    strip_backtick_spans(rest, !in_code?, acc)
+  end
+
+  defp strip_backtick_spans(<<char::utf8, rest::binary>>, false, acc) do
+    strip_backtick_spans(rest, false, <<acc::binary, char::utf8>>)
+  end
+
+  defp strip_backtick_spans(<<_char::utf8, rest::binary>>, true, acc) do
+    strip_backtick_spans(rest, true, acc)
+  end
+
+  defp strip_backtick_spans(<<>>, _in_code?, acc), do: acc
 
   defp deliver_to(%Participant{transport: :irc, pid: pid}, event) do
     send(pid, {:hangout_event, event})

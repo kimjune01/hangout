@@ -16,6 +16,14 @@ defmodule HangoutWeb do
     end
   end
 
+  def controller do
+    quote do
+      use Phoenix.Controller, formats: [:json]
+
+      import Plug.Conn
+    end
+  end
+
   def html do
     quote do
       use Phoenix.Component
