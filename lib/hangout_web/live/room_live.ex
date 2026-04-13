@@ -333,11 +333,15 @@ defmodule HangoutWeb.RoomLive do
 
             <div class="guest-list">
               <%= if @room_members != [] do %>
-                <%= for member <- @room_members do %>
+                <div class="guest-label">Inside now</div>
+                <%= for member <- Enum.take(@room_members, 8) do %>
                   <span class="guest" style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
                 <% end %>
+                <%= if length(@room_members) > 8 do %>
+                  <span class="guest more">+{length(@room_members) - 8} more</span>
+                <% end %>
               <% else %>
-                <span class="guest empty">empty room</span>
+                <div class="guest-label">No one here yet</div>
               <% end %>
             </div>
 
@@ -354,7 +358,7 @@ defmodule HangoutWeb.RoomLive do
                 autocomplete="off"
                 autofocus
               />
-              <button type="submit">Step in</button>
+              <button type="submit"><%= if @room_members == [], do: "Start the room", else: "Step in" %></button>
             </form>
 
             <div class="social-contract">
@@ -682,6 +686,7 @@ defmodule HangoutWeb.RoomLive do
   end
 
   defp apply_event(socket, _event), do: socket
+
 
   # --- Private: helpers ---
 

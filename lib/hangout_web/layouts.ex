@@ -259,13 +259,29 @@ defmodule HangoutWeb.Layouts do
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 0.5rem 1rem;
+            gap: 0.25rem 0.75rem;
             margin-bottom: 2rem;
             font-family: var(--font-mono);
             font-size: 0.9375rem;
+            max-width: 28rem;
+            margin-left: auto;
+            margin-right: auto;
           }
-          .guest-list .guest { opacity: 0.8; }
-          .guest-list .guest.empty { color: var(--dim); font-style: italic; }
+          .guest-list .guest-label {
+            width: 100%;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--dim);
+            margin-bottom: 0.25rem;
+          }
+          .guest-list .guest {
+            max-width: 10rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .guest-list .more { color: var(--dim); }
           .join-form { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
           .nick-prompt input {
             background: transparent;

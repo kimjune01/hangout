@@ -42,7 +42,7 @@ defmodule HangoutWeb.SmokeTest do
     test "renders nick prompt before join", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/smoke-room")
       assert html =~ "#smoke-room"
-      assert html =~ "Step in"
+      assert html =~ "Start the room" or html =~ "Step in"
       assert html =~ "room disappears"
     end
 
