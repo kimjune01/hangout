@@ -221,6 +221,7 @@ defmodule Hangout.ChannelServer do
         {:reply, {:error, :nick_in_use}, state}
 
       true ->
+        AgentToken.revoke_for_nick(state.name, old)
         {participant, members} = Map.pop(state.members, old)
         participant = %{participant | nick: new, last_seen_at: DateTime.utc_now()}
         {ref, refs} = Map.pop(state.monitor_refs, old)
@@ -476,6 +477,8 @@ defmodule Hangout.ChannelServer do
       buffer_size: state.buffer_size
     )
 
+    # Clean up all agent tokens for this room on any termination path
+    AgentToken.cleanup_room(state.name)
     :ok
   end
 

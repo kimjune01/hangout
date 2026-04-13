@@ -247,12 +247,15 @@ defmodule Hangout.AgentToken do
       String.downcase(metadata.owner_nick) == String.downcase(nick)
   end
 
-  defp cleanup_room(room_id) do
+  def cleanup_room(room_id) do
     room_id = ChannelRegistry.canonical!(room_id)
 
     :ets.foldl(
       fn {hash, metadata}, :ok ->
-        if metadata.room_id == room_id, do: :ets.delete(@table, hash)
+        if metadata.room_id == room_id do
+          Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(hash), {:agent_revoked, hash})
+          :ets.delete(@table, hash)
+        end
         :ok
       end,
       :ok,
