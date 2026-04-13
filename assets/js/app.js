@@ -16,22 +16,28 @@ liveSocket.connect();
 
 // Connection status banner + auto-reload on deploy
 const connBanner = document.getElementById("connection-status");
-let wasDisconnected = false;
+let disconnectedAt = null;
+const RELOAD_MIN_DISCONNECT_MS = 2000;
+const RELOAD_COOLDOWN_MS = 30000;
+const RELOAD_COOLDOWN_KEY = "hangout_last_reload";
 
 if (connBanner) {
   window.addEventListener("phx:page-loading-start", (info) => {
     if (info.detail?.kind === "error" || info.detail?.kind === "initial") {
       connBanner.classList.add("visible");
-      wasDisconnected = true;
+      if (!disconnectedAt) disconnectedAt = Date.now();
     }
   });
   window.addEventListener("phx:page-loading-stop", () => {
     connBanner.classList.remove("visible");
-    // If we reconnected after a disconnect, the server likely restarted.
-    // Reload to pick up new JS/HTML.
-    if (wasDisconnected) {
-      window.location.reload();
+    if (disconnectedAt && (Date.now() - disconnectedAt) > RELOAD_MIN_DISCONNECT_MS) {
+      const lastReload = parseInt(localStorage.getItem(RELOAD_COOLDOWN_KEY) || "0", 10);
+      if (Date.now() - lastReload > RELOAD_COOLDOWN_MS) {
+        localStorage.setItem(RELOAD_COOLDOWN_KEY, String(Date.now()));
+        window.location.reload();
+      }
     }
+    disconnectedAt = null;
   });
 }
 
