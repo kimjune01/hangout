@@ -137,11 +137,11 @@ const Notifications = {
 
     banner.querySelector(".notif-yes").style.cssText =
       "background:var(--accent);color:var(--bg);border:none;padding:0.25rem 0.75rem;" +
-      "border-radius:4px;cursor:pointer;font-weight:600;";
+      "border-radius:4px;cursor:pointer;font-weight:600;min-height:44px;";
 
     banner.querySelector(".notif-no").style.cssText =
       "background:none;border:1px solid var(--border);color:var(--muted);" +
-      "padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer;";
+      "padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer;min-height:44px;";
 
     banner.querySelector(".notif-yes").addEventListener("click", async () => {
       banner.remove();
@@ -416,9 +416,26 @@ const Voice = {
 
   async getLocalStream() {
     if (this.localStream) return this.localStream;
-    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    this.startVoiceMeter();
-    return this.localStream;
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this.startVoiceMeter();
+      return this.localStream;
+    } catch (err) {
+      // User denied mic permission or no mic available
+      const reason = err.name === "NotAllowedError"
+        ? "Microphone access denied. Check your browser permissions."
+        : "Could not access microphone.";
+      this.pushEvent("voice_leave", {});
+      // Show inline error via flash
+      const flash = document.createElement("div");
+      flash.className = "flash error";
+      flash.setAttribute("role", "alert");
+      flash.textContent = reason;
+      flash.style.cssText = "position:fixed;bottom:4rem;left:50%;transform:translateX(-50%);z-index:100;";
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 5000);
+      throw err;
+    }
   },
 
   startVoiceMeter() {

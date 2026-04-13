@@ -342,17 +342,17 @@ defmodule HangoutWeb.RoomLive do
       <div id="identity-hook" phx-hook="Identity" style="display:none" data-channel={@channel_slug}></div>
 
       <%= if @connection_status in [:room_ended, :room_expired] do %>
-        <div class="room-ended">
+        <main class="room-ended">
           <h2>Room ended</h2>
           <p style="color: var(--muted); margin-top: 1rem;">This room no longer exists.</p>
           <a href="/" style="margin-top: 1rem; display: inline-block;">Create a new room</a>
-        </div>
+        </main>
       <% else %>
         <%= if f = @flash["error"] do %>
-          <div class="flash error">{f}</div>
+          <div class="flash error" role="alert">{f}</div>
         <% end %>
 
-        <div class="header">
+        <header class="header">
           <div style="display: flex; align-items: baseline; min-width: 0; overflow: hidden;">
             <h1>{@channel_name}</h1>
             <%= if @joined? and @topic do %>
@@ -374,10 +374,10 @@ defmodule HangoutWeb.RoomLive do
               <% end %>
             <% end %>
           </div>
-        </div>
+        </header>
 
         <div id="voice-hook" phx-hook="Voice" style="display:none"></div>
-        <div class="room-layout">
+        <main class="room-layout">
           <div class="messages-panel" style="position: relative;">
             <button class="member-toggle" phx-click="toggle_members" aria-expanded={to_string(@mobile_members_open?)} aria-label="Toggle member list">
               <%= if @joined?, do: length(@participants), else: length(@room_members) %> in room
@@ -407,7 +407,7 @@ defmodule HangoutWeb.RoomLive do
                 <div class="mod-link-banner" style="margin-bottom: 0.5rem;">
                   <span class="label">Mod link (save this):</span>
                   <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
-                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;">dismiss</button>
+                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;min-height:44px;" aria-label="Dismiss mod banner">dismiss</button>
                 </div>
               <% end %>
 
@@ -508,7 +508,7 @@ defmodule HangoutWeb.RoomLive do
             </div>
 
             <%= if @send_error do %>
-              <div class="send-error">{@send_error}</div>
+              <div class="send-error" role="alert">{@send_error}</div>
             <% end %>
 
             <%= if @moderator? do %>
@@ -536,7 +536,7 @@ defmodule HangoutWeb.RoomLive do
               </details>
             <% end %>
           </div>
-        </div>
+        </main>
       <% end %>
     </div>
     """
@@ -805,16 +805,26 @@ defmodule HangoutWeb.RoomLive do
   defp message_class(%{kind: :notice}), do: "notice"
   defp message_class(_), do: ""
 
-  # Nick color palette — 12 hues readable on dark backgrounds
-  @nick_colors [
+  # Nick color palettes — 12 hues, each passing 4.5:1 contrast on its background
+  # Dark mode: light colors on #11100f
+  @nick_colors_dark [
     "#7cc7b2", "#e0b15d", "#c78dea", "#6cb4ee",
     "#e88b72", "#8dd99b", "#dda0c5", "#b0c862",
     "#7ab8d4", "#d4a76a", "#a0b4e0", "#c9c270"
   ]
+  # Light mode: darker saturated colors on #f5f3ef
+  @nick_colors_light [
+    "#1a7a65", "#8a6508", "#7a3daa", "#1a6eb8",
+    "#b83a2a", "#2a7a3d", "#a0406a", "#5a7a1a",
+    "#1a6a8a", "#8a5a1a", "#3a5a9a", "#7a7a1a"
+  ]
 
   defp nick_color(nick) do
-    hash = :erlang.phash2(nick, length(@nick_colors))
-    Enum.at(@nick_colors, hash)
+    hash = :erlang.phash2(nick, length(@nick_colors_dark))
+    # Return CSS custom property that resolves per-theme
+    dark = Enum.at(@nick_colors_dark, hash)
+    light = Enum.at(@nick_colors_light, hash)
+    "light-dark(#{light}, #{dark})"
   end
 
   defp human_error(:nick_in_use), do: "Nick already in use"
