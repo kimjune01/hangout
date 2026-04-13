@@ -13,15 +13,15 @@ defmodule HangoutWeb.RoomLive do
     mod_token = Map.get(params, "mod")
     ttl_seconds = parse_ttl(Map.get(params, "ttl"))
 
-    # Check if room already exists and how many people are in it
-    room_population =
+    # Peek at the room before joining — show who's inside
+    {room_population, room_members} =
       case Hangout.ChannelRegistry.lookup(channel_name) do
         {:ok, _pid} ->
           case ChannelServer.snapshot(channel_name) do
-            {:ok, snap} -> snap.human_count
-            _ -> 0
+            {:ok, snap} -> {snap.human_count, snap.members}
+            _ -> {0, []}
           end
-        :error -> 0
+        :error -> {0, []}
       end
 
     socket =
@@ -52,6 +52,7 @@ defmodule HangoutWeb.RoomLive do
         voice_enabled?: Application.get_env(:hangout, :enable_voice, true),
         legal_url: Application.get_env(:hangout, :legal_url),
         room_population: room_population,
+        room_members: room_members,
         page_title: "##{slug}"
       )
 
@@ -329,32 +330,33 @@ defmodule HangoutWeb.RoomLive do
         <% else %>
           <div class="nick-prompt">
             <div class="room-name">{@channel_name}</div>
-            <div class="room-info">
-              <%= cond do %>
-                <% @room_population > 1 -> %>
-                  {@room_population} people here
-                <% @room_population == 1 -> %>
-                  1 person here
-                <% true -> %>
-                  Empty room
+
+            <div class="guest-list">
+              <%= if @room_members != [] do %>
+                <%= for member <- @room_members do %>
+                  <span class="guest" style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
+                <% end %>
+              <% else %>
+                <span class="guest empty">empty room</span>
               <% end %>
             </div>
 
             <%= if f = @flash["error"] do %>
-              <div class="flash error" style="max-width: 20rem; margin: 0 auto 1rem;">{f}</div>
+              <div class="flash error" style="max-width: 24rem; margin: 0 auto 0.75rem;">{f}</div>
             <% end %>
 
-            <form phx-submit="choose_nick">
+            <form phx-submit="choose_nick" class="join-form">
               <input
                 type="text"
                 name="nick"
                 value=""
-                placeholder="What's your name?"
+                placeholder="your name"
                 autocomplete="off"
                 autofocus
               />
               <button type="submit">Step in</button>
             </form>
+
             <div class="social-contract">
               <p>The room disappears when everyone leaves.</p>
               <p>Anyone present can still copy what they see.</p>

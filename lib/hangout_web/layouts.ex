@@ -255,14 +255,26 @@ defmodule HangoutWeb.Layouts do
             margin-bottom: 0.5rem;
           }
           .nick-prompt .room-info { color: var(--muted); font-size: 0.9375rem; margin-bottom: 2rem; }
+          .guest-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem 1rem;
+            margin-bottom: 2rem;
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+          }
+          .guest-list .guest { opacity: 0.8; }
+          .guest-list .guest.empty { color: var(--dim); font-style: italic; }
+          .join-form { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
           .nick-prompt input {
             background: transparent;
             border: none;
             border-bottom: 2px solid var(--border);
             color: var(--text);
-            padding: 0.75rem 0.5rem;
-            font-size: 1.125rem;
-            width: 16rem;
+            padding: 0.5rem 0.5rem;
+            font-size: 1rem;
+            width: 12rem;
             text-align: center;
             font-family: var(--font-mono);
             outline: none;
