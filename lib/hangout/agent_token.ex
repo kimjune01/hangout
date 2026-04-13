@@ -135,20 +135,27 @@ defmodule Hangout.AgentToken do
   def check_dedup(raw_token, client_msg_id) when is_binary(client_msg_id) do
     token_hash = hash_token(raw_token)
     key = {token_hash, client_msg_id}
-    now = System.monotonic_time(:millisecond)
 
     case :ets.lookup(@dedup_table, key) do
-      [{^key, _inserted_at}] ->
-        {:error, :duplicate}
-
-      [] ->
-        :ets.insert(@dedup_table, {key, now})
-        prune_dedup(token_hash)
-        :ok
+      [{^key, _inserted_at}] -> {:error, :duplicate}
+      [] -> :ok
     end
   end
 
   def check_dedup(_raw_token, _client_msg_id), do: :ok
+
+  def record_dedup(_raw_token, nil), do: :ok
+  def record_dedup(_raw_token, ""), do: :ok
+
+  def record_dedup(raw_token, client_msg_id) when is_binary(client_msg_id) do
+    token_hash = hash_token(raw_token)
+    key = {token_hash, client_msg_id}
+    :ets.insert(@dedup_table, {key, System.monotonic_time(:millisecond)})
+    prune_dedup(token_hash)
+    :ok
+  end
+
+  def record_dedup(_raw_token, _client_msg_id), do: :ok
 
   def hash_token(raw_token), do: :crypto.hash(:sha256, raw_token)
 

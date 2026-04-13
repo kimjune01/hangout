@@ -50,12 +50,15 @@ defmodule HangoutWeb.AgentController do
       {:ok, metadata} ->
         case request_body(conn) do
           {:ok, params} ->
-            body = params["body"] || ""
+            raw_body = params["body"]
             client_msg_id = params["client_msg_id"]
 
-            with :ok <- AgentToken.check_dedup(token, client_msg_id),
+            with true <- is_binary(raw_body) and String.trim(raw_body) != "",
+                 :ok <- AgentToken.check_dedup(token, client_msg_id),
                  :ok <- AgentToken.check_rate_limit(token),
-                 {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, body) do
+                 {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, raw_body) do
+              AgentToken.record_dedup(token, client_msg_id)
+
               conn
               |> put_status(200)
               |> json(%{
@@ -84,6 +87,9 @@ defmodule HangoutWeb.AgentController do
               {:error, :no_such_channel} ->
                 conn |> put_status(404) |> json(%{"ok" => false, "error" => "room_ended"})
 
+              false ->
+                conn |> put_status(400) |> json(%{"ok" => false, "error" => "body_required"})
+
               {:error, reason} ->
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => to_string(reason)})
             end
@@ -106,30 +112,30 @@ defmodule HangoutWeb.AgentController do
         case request_body(conn) do
           {:ok, params} ->
             raw_body = params["body"]
-            body = if is_binary(raw_body), do: raw_body, else: ""
+            client_msg_id = params["client_msg_id"]
             max_bytes = Application.get_env(:hangout, :message_body_max_bytes, 4000)
 
-            cond do
-              not is_binary(raw_body) ->
-                conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
+            with {true, _} <- {is_binary(raw_body), :type},
+                 {true, _} <- {byte_size(raw_body) <= max_bytes, :size},
+                 {:ok, _} <- Hangout.SecretFilter.check(raw_body),
+                 :ok <- AgentToken.check_dedup(token, client_msg_id),
+                 :ok <- AgentToken.check_rate_limit(token) do
+              room_id = "#" <> room
 
-              byte_size(body) > max_bytes ->
-                conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
+              Phoenix.PubSub.broadcast(
+                Hangout.PubSub,
+                "agent_draft:#{room_id}:#{metadata.owner_nick}",
+                {:agent_draft, %{body: raw_body, from: metadata.owner_nick}}
+              )
 
-              match?({:secret, _}, Hangout.SecretFilter.check(body)) ->
-                {:secret, kind} = Hangout.SecretFilter.check(body)
-                conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
-
-              true ->
-                room_id = "#" <> room
-
-                Phoenix.PubSub.broadcast(
-                  Hangout.PubSub,
-                  "agent_draft:#{room_id}:#{metadata.owner_nick}",
-                  {:agent_draft, %{body: body, from: metadata.owner_nick}}
-                )
-
-                conn |> put_status(200) |> json(%{"ok" => true})
+              AgentToken.record_dedup(token, client_msg_id)
+              conn |> put_status(200) |> json(%{"ok" => true})
+            else
+              {false, :type} -> conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
+              {false, :size} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
+              {:secret, kind} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
+              {:error, :duplicate} -> conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
+              {:error, :rate_limited} -> conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
             end
 
           {:error, _} ->
