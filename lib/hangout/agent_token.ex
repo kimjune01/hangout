@@ -148,7 +148,7 @@ defmodule Hangout.AgentToken do
     end
   end
 
-  def check_dedup(raw_token, client_msg_id), do: check_dedup(raw_token, to_string(client_msg_id))
+  def check_dedup(_raw_token, _client_msg_id), do: :ok
 
   def hash_token(raw_token), do: :crypto.hash(:sha256, raw_token)
 

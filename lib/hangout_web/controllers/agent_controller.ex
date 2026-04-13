@@ -22,6 +22,10 @@ defmodule HangoutWeb.AgentController do
             |> put_resp_header("connection", "keep-alive")
             |> send_chunked(200)
 
+          # Schedule expiry timer
+          ttl_ms = DateTime.diff(metadata.expires_at, DateTime.utc_now(), :millisecond)
+          if ttl_ms > 0, do: Process.send_after(self(), :token_expired, ttl_ms)
+
           with {:ok, conn} <- chunk(conn, sse_event("context", build_context(room, metadata))),
                {:ok, conn} <- chunk(conn, sse_event("history", build_history(channel_name))) do
             sse_loop(conn)
@@ -199,8 +203,10 @@ defmodule HangoutWeb.AgentController do
 
   defp request_body(%{body_params: %Plug.Conn.Unfetched{}} = conn) do
     with {:ok, raw_body, _conn} <- Plug.Conn.read_body(conn),
-         {:ok, params} <- Jason.decode(raw_body) do
+         {:ok, params} when is_map(params) <- Jason.decode(raw_body) do
       {:ok, params}
+    else
+      _ -> {:error, :invalid_json}
     end
   end
 
@@ -271,6 +277,10 @@ defmodule HangoutWeb.AgentController do
 
       {:agent_revoked, _token_hash} ->
         _ = chunk(conn, sse_event("system", %{"body" => "Token revoked"}))
+        conn
+
+      :token_expired ->
+        _ = chunk(conn, sse_event("system", %{"body" => "Token expired"}))
         conn
 
       {:hangout_event, _other} ->
