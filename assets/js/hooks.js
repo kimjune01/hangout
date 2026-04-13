@@ -54,10 +54,21 @@ function publicKeyFingerprint(jwk) {
 // Auto-scrolls to bottom on new messages. Detects scroll-lock when user
 // scrolls up. Re-enables auto-scroll when user scrolls back to bottom.
 
+function localizeTimestamps(container) {
+  for (const el of container.querySelectorAll(".time[data-utc]:not([data-localized])")) {
+    const d = new Date(el.dataset.utc);
+    if (!isNaN(d)) {
+      el.textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      el.dataset.localized = "";
+    }
+  }
+}
+
 const Scroll = {
   mounted() {
     this.autoScroll = true;
     this.el.scrollTop = this.el.scrollHeight;
+    localizeTimestamps(this.el);
 
     this.el.addEventListener("scroll", () => {
       const atBottom =
@@ -66,6 +77,7 @@ const Scroll = {
     });
 
     this.observer = new MutationObserver(() => {
+      localizeTimestamps(this.el);
       if (this.autoScroll) {
         requestAnimationFrame(() => {
           this.el.scrollTop = this.el.scrollHeight;
@@ -318,15 +330,52 @@ const TTLCountdown = {
 // Clears input on submit. Also handles notification events (moved from Notifications
 // hook since this is the primary interactive element on the page).
 
+const PLACEHOLDERS = [
+  "say something",
+  "what's on your mind?",
+  "go ahead",
+  "speak freely",
+  "your turn",
+  "anything to add?",
+  "thoughts?",
+  "the floor is yours",
+  "say hi",
+  "jump in",
+  "don't be shy",
+  "we're listening",
+  "fire away",
+  "what do you think?",
+  "contribute",
+  "add to the conversation",
+  "chime in",
+  "got something?",
+  "say your piece",
+  "break the silence",
+  "pitch in",
+  "share a thought",
+  "what's the word?",
+  "go on",
+];
+
+function randomPlaceholder(current) {
+  let next;
+  do { next = PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)]; } while (next === current);
+  return next;
+}
+
 const MessageForm = {
   mounted() {
     this.notificationsEnabled = false;
+    const input = this.el.querySelector("input[name=body]");
+    if (input) input.placeholder = randomPlaceholder();
 
-    // Clear input on submit
+    // Clear input on submit, occasionally change placeholder (~1 in 5)
     this.el.addEventListener("submit", () => {
-      const input = this.el.querySelector("input[name=body]");
       if (input) {
-        requestAnimationFrame(() => { input.value = ""; });
+        requestAnimationFrame(() => {
+          input.value = "";
+          if (Math.random() < 0.2) input.placeholder = randomPlaceholder(input.placeholder);
+        });
       }
     });
 

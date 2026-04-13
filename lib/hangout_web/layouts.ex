@@ -127,15 +127,11 @@ defmodule HangoutWeb.Layouts do
             font-family: var(--font-mono);
             font-size: 0.6875rem;
             cursor: pointer;
-            padding: 0.5rem;
-            vertical-align: top;
+            padding: 0 0.25rem;
+            margin-left: 0.25rem;
+            vertical-align: baseline;
             opacity: 0;
             transition: opacity 0.15s;
-            min-height: 44px;
-            min-width: 44px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
           }
           .message:hover .copy-md { opacity: 1; }
           .copy-md:hover { color: var(--accent); }
@@ -239,7 +235,6 @@ defmodule HangoutWeb.Layouts do
             justify-content: space-between;
             align-items: baseline;
             padding: var(--sp-2) 0;
-            border-bottom: 1px solid var(--border);
             margin-bottom: var(--sp-2);
           }
           .header h1 { font-family: var(--font-mono); font-size: 1.125rem; color: var(--text); font-weight: 600; }
@@ -261,6 +256,7 @@ defmodule HangoutWeb.Layouts do
             user-select: none;
             list-style: none;
             font-family: var(--font-mono);
+            opacity: 0.5;
           }
           .mod-controls summary:hover { color: var(--text); }
           .mod-controls summary::-webkit-details-marker { display: none; }
@@ -320,6 +316,7 @@ defmodule HangoutWeb.Layouts do
           }
           .guest-list .guest-label {
             width: 100%;
+            text-align: center;
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;

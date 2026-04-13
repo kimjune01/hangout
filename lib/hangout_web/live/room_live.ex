@@ -366,10 +366,10 @@ defmodule HangoutWeb.RoomLive do
           <div class="badges">
             <%= if @joined? do %>
               <%= if @modes[:i] do %>
-                <span class="lock-badge" title="Room is locked">locked</span>
+                <span class="lock-badge" title="Room is locked">🔒</span>
               <% end %>
               <%= if @modes[:m] do %>
-                <span title="Room is muted">muted</span>
+                <span title="Room is muted">🔇</span>
               <% end %>
               <%= if @expires_at do %>
                 <span class="ttl-badge" id="ttl-countdown" phx-hook="TTLCountdown" data-expires-at={DateTime.to_iso8601(@expires_at)}>
@@ -412,7 +412,7 @@ defmodule HangoutWeb.RoomLive do
                 <div class="mod-link-banner" style="margin-bottom: 0.5rem;">
                   <span class="label">Mod link (save this):</span>
                   <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
-                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;min-height:44px;" aria-label="Dismiss mod banner">dismiss</button>
+                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.875rem;min-height:44px;" aria-label="Dismiss mod banner">✕</button>
                 </div>
               <% end %>
 
@@ -422,13 +422,13 @@ defmodule HangoutWeb.RoomLive do
                 <% end %>
                 <%= for msg <- @messages do %>
                   <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
-                    <span class="time">{format_time(msg.at)}</span>
+                    <span class="time" data-utc={DateTime.to_iso8601(msg.at)}>{format_time(msg.at)}</span>
                     <%= case msg.kind do %>
                       <% :privmsg -> %>
                         <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
                         <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
+                          <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown" aria-label="Copy">📋</button>
                           <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
-                          <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown">copy</button>
                         <% else %>
                           {msg.body}
                         <% end %>
@@ -473,9 +473,9 @@ defmodule HangoutWeb.RoomLive do
               <%= if @joined? do %>
                 <%= if @voice_enabled? do %>
                   <%= if @in_voice? do %>
-                    <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">leave voice</button>
+                    <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">🎙️</button>
                   <% else %>
-                    <button class="voice-btn" phx-click="voice_join" title="Join voice">voice</button>
+                    <button class="voice-btn" phx-click="voice_join" title="Join voice">🎙️</button>
                   <% end %>
                 <% end %>
                 <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
@@ -483,7 +483,7 @@ defmodule HangoutWeb.RoomLive do
                   <input
                     type="text"
                     name="body"
-                    placeholder="Type a message..."
+                    placeholder="say something"
                     autocomplete="off"
                     autofocus
                     maxlength="400"
@@ -491,7 +491,7 @@ defmodule HangoutWeb.RoomLive do
                     aria-label="Message"
                     phx-hook="AutoFocus"
                   />
-                  <button type="submit">Send</button>
+                  <button type="submit" aria-label="Send">↑</button>
                 </form>
               <% else %>
                 <form phx-submit="choose_nick" id="join-form" style="display: flex; flex: 1; align-items: center; gap: 0.5rem;">
