@@ -784,21 +784,13 @@ defmodule Hangout.ChannelServer do
     Regex.match?(~r/(^|[^\p{L}\p{N}_])@#{escaped}🤖(?=$|[^\p{L}\p{N}_])/iu, body)
   end
 
-  defp strip_backtick_spans(body), do: strip_backtick_spans(body, false, "")
-
-  defp strip_backtick_spans(<<"`", rest::binary>>, in_code?, acc) do
-    strip_backtick_spans(rest, !in_code?, acc)
+  # Strip content inside backtick code spans (any number of backticks) and fenced code blocks
+  defp strip_backtick_spans(body) do
+    # First strip fenced code blocks (``` or more)
+    body = Regex.replace(~r/```+.*?```+/s, body, "")
+    # Then strip inline code spans (matching backtick runs)
+    Regex.replace(~r/(`+)(?:(?!\1).)+\1/s, body, "")
   end
-
-  defp strip_backtick_spans(<<char::utf8, rest::binary>>, false, acc) do
-    strip_backtick_spans(rest, false, <<acc::binary, char::utf8>>)
-  end
-
-  defp strip_backtick_spans(<<_char::utf8, rest::binary>>, true, acc) do
-    strip_backtick_spans(rest, true, acc)
-  end
-
-  defp strip_backtick_spans(<<>>, _in_code?, acc), do: acc
 
   defp deliver_to(%Participant{transport: :irc, pid: pid}, event) do
     send(pid, {:hangout_event, event})

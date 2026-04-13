@@ -120,6 +120,7 @@ defmodule HangoutWeb.AgentController do
             with {true, _} <- {is_binary(raw_body), :type},
                  {true, _} <- {byte_size(raw_body) <= max_bytes, :size},
                  {:ok, _} <- Hangout.SecretFilter.check(raw_body),
+                 :ok <- check_room_mute("#" <> room),
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
                  :ok <- AgentToken.check_rate_limit(token) do
               room_id = "#" <> room
@@ -135,6 +136,7 @@ defmodule HangoutWeb.AgentController do
               {false, :type} -> conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
               {false, :size} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
               {:secret, kind} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
+              {:error, :agent_muted} -> conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_muted"})
               {:error, :duplicate} -> conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
               {:error, :rate_limited} ->
                 AgentToken.release_dedup(token, client_msg_id)
@@ -221,6 +223,14 @@ defmodule HangoutWeb.AgentController do
 
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
+
+  defp check_room_mute(channel_name) do
+    case ChannelServer.snapshot(channel_name) do
+      {:ok, %{modes: %{m: true}}} -> {:error, :agent_muted}
+      {:ok, _} -> :ok
+      {:error, _} -> {:error, :no_such_channel}
+    end
+  end
 
   defp sse_loop(conn) do
     receive do
