@@ -318,6 +318,7 @@ defmodule HangoutWeb.Layouts do
             margin-bottom: var(--sp-8);
             font-family: var(--font-mono);
             font-size: 0.9375rem;
+            width: 100%;
             max-width: 28rem;
             margin-left: auto;
             margin-right: auto;
