@@ -42,6 +42,17 @@ PRIVMSG #calc-study :hello
 - **Browser Notification API.** No push service, no service worker.
 - **AGPL-3.0.**
 
+## UX
+
+- **Party metaphor.** Entry screen shows a guest list ("Inside now: alice, bob"). "Step in" to join, "Start the room" if empty. The room layout persists through the join transition — content morphs in place.
+- **Anchored transition.** Room layout (header, messages, input) stays fixed. Entry content fades out, chat content fades in. No hard cut.
+- **Spacing scale.** 8 CSS custom properties (`--sp-1` through `--sp-8`). All structural gaps use tokens.
+- **State completeness.** Empty chat ("No messages yet."), inline send errors, reconnecting banner, room ended/expired screens. Voice mic denial handled with error message.
+- **Accessibility.** Semantic landmarks (`<header>`, `<main>`), `aria-label` on all controls, `aria-expanded` on member drawer, `:focus-visible` on all interactive elements, `prefers-reduced-motion` respected, 44px minimum touch targets, theme-aware nick colors with light/dark contrast.
+- **iOS keyboard.** `visualViewport` API sets `--vvh` so the input bar stays above the keyboard on mobile Safari.
+- **Light/dark mode.** Toggle persists in localStorage. Semantic color tokens adapt. Nick colors have separate light/dark palettes.
+- **Conveyance.** System messages for join/leave/nick-change. "You joined as {nick}" confirmation. Voice button labeled "voice"/"leave voice" instead of icon-only.
+
 ## Architecture
 
 ```
