@@ -320,56 +320,12 @@ defmodule HangoutWeb.RoomLive do
     <div class="container">
       <div id="identity-hook" phx-hook="Identity" style="display:none" data-channel={@channel_slug}></div>
 
-      <%= if not @joined? do %>
-        <%= if @connection_status in [:room_ended, :room_expired] do %>
-          <div class="room-ended">
-            <h2>Room ended</h2>
-            <p style="color: var(--muted); margin-top: 1rem;">This room no longer exists.</p>
-            <a href="/" style="margin-top: 1rem; display: inline-block;">Create a new room</a>
-          </div>
-        <% else %>
-          <div class="nick-prompt">
-            <div class="room-name">{@channel_name}</div>
-
-            <div class="guest-list">
-              <%= if @room_members != [] do %>
-                <div class="guest-label">Inside now</div>
-                <%= for member <- Enum.take(@room_members, 8) do %>
-                  <span class="guest" style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
-                <% end %>
-                <%= if length(@room_members) > 8 do %>
-                  <span class="guest more">+{length(@room_members) - 8} more</span>
-                <% end %>
-              <% else %>
-                <div class="guest-label">No one here yet</div>
-              <% end %>
-            </div>
-
-            <%= if f = @flash["error"] do %>
-              <div class="flash error" style="max-width: 24rem; margin: 0 auto 0.75rem;">{f}</div>
-            <% end %>
-
-            <form phx-submit="choose_nick" class="join-form">
-              <input
-                type="text"
-                name="nick"
-                value=""
-                placeholder="your name"
-                autocomplete="off"
-                autofocus
-              />
-              <button type="submit"><%= if @room_members == [], do: "Start the room", else: "Step in" %></button>
-            </form>
-
-            <div class="social-contract">
-              <p>The room disappears when everyone leaves.</p>
-              <p>Anyone present can still copy what they see.</p>
-              <%= if @legal_url do %>
-                <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
+      <%= if @connection_status in [:room_ended, :room_expired] do %>
+        <div class="room-ended">
+          <h2>Room ended</h2>
+          <p style="color: var(--muted); margin-top: 1rem;">This room no longer exists.</p>
+          <a href="/" style="margin-top: 1rem; display: inline-block;">Create a new room</a>
+        </div>
       <% else %>
         <%= if f = @flash["error"] do %>
           <div class="flash error">{f}</div>
@@ -378,26 +334,28 @@ defmodule HangoutWeb.RoomLive do
         <div class="header">
           <div style="display: flex; align-items: baseline; min-width: 0; overflow: hidden;">
             <h1>{@channel_name}</h1>
-            <%= if @topic do %>
+            <%= if @joined? and @topic do %>
               <span class="topic">{@topic}</span>
             <% end %>
           </div>
           <div class="badges">
-            <%= if @modes[:i] do %>
-              <span class="lock-badge" title="Room is locked">locked</span>
-            <% end %>
-            <%= if @modes[:m] do %>
-              <span title="Room is muted">muted</span>
-            <% end %>
-            <%= if @expires_at do %>
-              <span class="ttl-badge" id="ttl-countdown" phx-hook="TTLCountdown" data-expires-at={DateTime.to_iso8601(@expires_at)}>
-                expires {DateTime.to_iso8601(@expires_at)}
-              </span>
+            <%= if @joined? do %>
+              <%= if @modes[:i] do %>
+                <span class="lock-badge" title="Room is locked">locked</span>
+              <% end %>
+              <%= if @modes[:m] do %>
+                <span title="Room is muted">muted</span>
+              <% end %>
+              <%= if @expires_at do %>
+                <span class="ttl-badge" id="ttl-countdown" phx-hook="TTLCountdown" data-expires-at={DateTime.to_iso8601(@expires_at)}>
+                  expires {DateTime.to_iso8601(@expires_at)}
+                </span>
+              <% end %>
             <% end %>
           </div>
         </div>
 
-        <%= if @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
+        <%= if @joined? && @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
           <div class="mod-link-banner">
             <span class="label">Mod link (save this):</span>
             <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
@@ -409,46 +367,71 @@ defmodule HangoutWeb.RoomLive do
         <div class="room-layout">
           <div class="messages-panel" style="position: relative;">
             <div class="messages" id="messages" phx-hook="Scroll">
-              <%= for msg <- @messages do %>
-                <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
-                  <span class="time">{format_time(msg.at)}</span>
-                  <%= case msg.kind do %>
-                    <% :privmsg -> %>
-                      <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
-                      <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
-                        <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
-                        <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown">copy</button>
-                      <% else %>
+              <%= if @joined? do %>
+                <%= for msg <- @messages do %>
+                  <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
+                    <span class="time">{format_time(msg.at)}</span>
+                    <%= case msg.kind do %>
+                      <% :privmsg -> %>
+                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
+                        <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
+                          <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
+                          <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown">copy</button>
+                        <% else %>
+                          {msg.body}
+                        <% end %>
+                      <% :action -> %>
+                        * <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}</span> {msg.body}
+                      <% :notice -> %>
+                        -<span class="nick">{msg.from}</span>- {msg.body}
+                      <% :system -> %>
                         {msg.body}
+                      <% _ -> %>
+                        <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
+                    <% end %>
+                  </div>
+                <% end %>
+              <% else %>
+                <div class="entry-content">
+                  <div class="guest-list">
+                    <%= if @room_members != [] do %>
+                      <div class="guest-label">Inside now</div>
+                      <%= for member <- Enum.take(@room_members, 8) do %>
+                        <span class="guest" style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
                       <% end %>
-                    <% :action -> %>
-                      * <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}</span> {msg.body}
-                    <% :notice -> %>
-                      -<span class="nick">{msg.from}</span>- {msg.body}
-                    <% :system -> %>
-                      {msg.body}
-                    <% _ -> %>
-                      <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span> {msg.body}
-                  <% end %>
+                      <%= if length(@room_members) > 8 do %>
+                        <span class="guest more">+{length(@room_members) - 8} more</span>
+                      <% end %>
+                    <% else %>
+                      <div class="guest-label">No one here yet</div>
+                    <% end %>
+                  </div>
+                  <div class="social-contract">
+                    <p>The room disappears when everyone leaves.</p>
+                    <p>Anyone present can still copy what they see.</p>
+                    <%= if @legal_url do %>
+                      <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
+                    <% end %>
+                  </div>
                 </div>
               <% end %>
 
               <button class="member-toggle" phx-click="toggle_members">
-                {length(@participants)} in room
+                <%= if @joined?, do: length(@participants), else: length(@room_members) %> in room
               </button>
 
               <%= if @mobile_members_open? do %>
                 <div class="member-drawer">
-                  <%= for member <- @participants do %>
+                  <%= for member <- (if @joined?, do: @participants, else: @room_members) do %>
                     <div class="nick-entry">
-                      <%= if :o in (member.modes || []) do %>
+                      <%= if :o in (member[:modes] || member.modes || []) do %>
                         <span class="op-badge">@</span>
                       <% end %>
                       <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
-                      <%= if member.bot? do %>
+                      <%= if member[:bot?] || member.bot? do %>
                         <span class="bot-badge">[bot]</span>
                       <% end %>
-                      <%= if @moderator? and member.nick != @nick do %>
+                      <%= if @joined? and @moderator? and member.nick != @nick do %>
                         <button class="kick-btn" phx-click="kick_user" phx-value-nick={member.nick} title="Kick">x</button>
                       <% end %>
                     </div>
@@ -458,26 +441,43 @@ defmodule HangoutWeb.RoomLive do
             </div>
 
             <div class="input-bar">
-              <%= if @voice_enabled? do %>
-                <%= if @in_voice? do %>
-                  <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">mic</button>
-                <% else %>
-                  <button class="voice-btn" phx-click="voice_join" title="Join voice">mic</button>
+              <%= if @joined? do %>
+                <%= if @voice_enabled? do %>
+                  <%= if @in_voice? do %>
+                    <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">mic</button>
+                  <% else %>
+                    <button class="voice-btn" phx-click="voice_join" title="Join voice">mic</button>
+                  <% end %>
                 <% end %>
+                <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
+                <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
+                  <input
+                    type="text"
+                    name="body"
+                    placeholder="Type a message..."
+                    autocomplete="off"
+                    autofocus
+                    maxlength="400"
+                    id="message-input"
+                  />
+                  <button type="submit">Send</button>
+                </form>
+              <% else %>
+                <form phx-submit="choose_nick" id="join-form" style="display: flex; flex: 1; align-items: center; gap: 0.5rem;">
+                  <input
+                    type="text"
+                    name="nick"
+                    value=""
+                    placeholder="your name"
+                    autocomplete="off"
+                    autofocus
+                    style="font-family: var(--font-mono);"
+                  />
+                  <button type="submit" style="background:var(--accent);color:var(--btn-text);border:none;padding:0.4rem 1rem;border-radius:4px;cursor:pointer;font-weight:600;white-space:nowrap;">
+                    <%= if @room_members == [], do: "Start the room", else: "Step in" %>
+                  </button>
+                </form>
               <% end %>
-              <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
-              <form phx-submit="send_message" id="message-form" phx-hook="MessageForm" style="display: flex; flex: 1;">
-                <input
-                  type="text"
-                  name="body"
-                  placeholder="Type a message..."
-                  autocomplete="off"
-                  autofocus
-                  maxlength="400"
-                  id="message-input"
-                />
-                <button type="submit">Send</button>
-              </form>
             </div>
 
             <%= if @moderator? do %>

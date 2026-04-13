@@ -245,7 +245,18 @@ defmodule HangoutWeb.Layouts do
           .mod-controls button.danger { border-color: var(--danger); color: var(--danger); }
           .mod-controls button.danger:hover { background: var(--danger); color: var(--btn-text); }
 
-          /* --- Nick prompt --- */
+          /* --- Entry content (inside messages panel before join) --- */
+          .entry-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            padding: 2rem 1rem;
+            animation: fade-in 0.2s ease;
+          }
+
+          /* --- Nick prompt (kept for room-ended state) --- */
           .nick-prompt { text-align: center; padding: 6rem 1rem 4rem; }
           .nick-prompt .room-name {
             font-family: var(--font-mono);
@@ -408,6 +419,11 @@ defmodule HangoutWeb.Layouts do
             line-height: 1;
           }
           .theme-toggle:hover { color: var(--text); }
+
+          @keyframes fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
 
           @media (max-width: 640px) {
             .container { padding: 0.5rem; }
