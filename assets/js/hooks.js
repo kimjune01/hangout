@@ -54,6 +54,30 @@ function publicKeyFingerprint(jwk) {
 // Auto-scrolls to bottom on new messages. Detects scroll-lock when user
 // scrolls up. Re-enables auto-scroll when user scrolls back to bottom.
 
+function collapseOverflow(container) {
+  const LINE_HEIGHT = 24; // 1.5 × 16px
+  const MAX_LINES = 3;
+  const threshold = LINE_HEIGHT * MAX_LINES;
+
+  for (const msg of container.querySelectorAll(".message:not(.system):not([data-collapse-checked])")) {
+    msg.dataset.collapseChecked = "";
+    // Measure the text content area (everything after time + nick)
+    const body = msg.querySelector(".md-body");
+    if (!body) continue;
+    if (body.scrollHeight > threshold) {
+      msg.classList.add("collapsed");
+      const toggle = document.createElement("button");
+      toggle.className = "collapse-toggle";
+      toggle.textContent = "show more";
+      toggle.addEventListener("click", () => {
+        const isCollapsed = msg.classList.toggle("collapsed");
+        toggle.textContent = isCollapsed ? "show more" : "show less";
+      });
+      msg.appendChild(toggle);
+    }
+  }
+}
+
 function localizeTimestamps(container) {
   for (const el of container.querySelectorAll(".time[data-utc]:not([data-localized])")) {
     const d = new Date(el.dataset.utc);
@@ -69,6 +93,7 @@ const Scroll = {
     this.autoScroll = true;
     this.el.scrollTop = this.el.scrollHeight;
     localizeTimestamps(this.el);
+    collapseOverflow(this.el);
 
     this.el.addEventListener("scroll", () => {
       const atBottom =
@@ -78,6 +103,7 @@ const Scroll = {
 
     this.observer = new MutationObserver(() => {
       localizeTimestamps(this.el);
+      collapseOverflow(this.el);
       if (this.autoScroll) {
         requestAnimationFrame(() => {
           this.el.scrollTop = this.el.scrollHeight;

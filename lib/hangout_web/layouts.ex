@@ -139,6 +139,24 @@ defmodule HangoutWeb.Layouts do
           .message:hover .copy-md { opacity: 1; }
           .copy-md:hover { color: var(--accent); }
 
+          /* --- Collapse long messages --- */
+          .message.collapsed .md-body {
+            max-height: 4.5em; /* 3 lines × 1.5 line-height */
+            overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+          }
+          .collapse-toggle {
+            background: none;
+            border: none;
+            color: var(--dim);
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            padding: 0;
+          }
+          .collapse-toggle:hover { color: var(--accent); }
+
           /* --- Member toggle + drawer (inside messages panel) --- */
           .member-toggle {
             position: absolute;
