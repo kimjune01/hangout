@@ -670,6 +670,8 @@ defmodule Hangout.ChannelServer do
   end
 
   defp remove_member(state, nick) do
+    was_op = match?(%Participant{modes: modes} when is_struct(modes), state.members[nick]) and
+             MapSet.member?(state.members[nick].modes, :o)
     was_in_voice = MapSet.member?(state.voice_participants, nick)
     AgentToken.revoke_for_nick(state.name, nick)
 
@@ -685,7 +687,33 @@ defmodule Hangout.ChannelServer do
 
     state = %{state | voice_participants: MapSet.delete(state.voice_participants, nick)}
     if was_in_voice, do: broadcast(state, {:voice_left, state.name, nick})
+
+    # Mod succession: if the departing member was an op and no ops remain, promote the longest-tenured human
+    state = maybe_promote_successor(state, was_op)
     state
+  end
+
+  defp maybe_promote_successor(state, false), do: state
+
+  defp maybe_promote_successor(state, true) do
+    has_ops = Enum.any?(state.members, fn {_nick, p} -> MapSet.member?(p.modes, :o) end)
+
+    if has_ops do
+      state
+    else
+      state.members
+      |> Map.values()
+      |> Enum.filter(&Participant.human?/1)
+      |> Enum.sort_by(& &1.joined_at, DateTime)
+      |> List.first()
+      |> case do
+        nil -> state
+        successor ->
+          state = update_member_modes(state, successor.nick, &MapSet.put(&1, :o))
+          broadcast(state, {:user_mode_changed, @server_name, successor.nick, state.name, :o, true})
+          state
+      end
+    end
   end
 
   defp update_member_modes(state, nick, fun) do
