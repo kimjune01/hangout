@@ -251,10 +251,11 @@ defmodule HangoutWeb.Layouts do
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            flex: 1;
+            min-height: 100%;
             padding: 2rem 1rem;
             animation: fade-in 0.2s ease;
           }
+          .messages:has(.entry-content) { display: flex; }
 
           /* --- Nick prompt (kept for room-ended state) --- */
           .nick-prompt { text-align: center; padding: 6rem 1rem 4rem; }

@@ -224,9 +224,20 @@ defmodule HangoutWeb.RoomLive do
       NickRegistry.unregister(socket.assigns.nick)
     end
 
+    # Refresh guest list for re-entry screen
+    fresh_members =
+      case Hangout.ChannelRegistry.lookup(socket.assigns.channel_name) do
+        {:ok, _} ->
+          case ChannelServer.snapshot(socket.assigns.channel_name) do
+            {:ok, snap} -> snap.members
+            _ -> []
+          end
+        :error -> []
+      end
+
     socket =
       socket
-      |> assign(joined?: false, nick: nil, participants: [], messages: [])
+      |> assign(joined?: false, nick: nil, participants: [], messages: [], room_members: fresh_members)
       |> push_event("hangout:nick_clear", %{})
 
     {:noreply, socket}
