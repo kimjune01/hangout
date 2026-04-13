@@ -38,12 +38,12 @@ defmodule HangoutWeb.HomeLive do
   def render(assigns) do
     ~H"""
     <div class="container">
-      <div class="home-form">
+      <main class="home-form">
         <h1>#hangout</h1>
         <p class="tagline">Rooms exist while people are in them.</p>
 
         <%= if f = @flash["error"] do %>
-          <div class="flash error">{f}</div>
+          <div class="flash error" role="alert">{f}</div>
         <% end %>
 
         <form phx-submit="create_room">
@@ -53,9 +53,10 @@ defmodule HangoutWeb.HomeLive do
             value={@room_name}
             placeholder="Room name (leave blank for random)"
             autocomplete="off"
+            aria-label="Room name"
           />
 
-          <select name="ttl">
+          <select name="ttl" aria-label="Room expiration">
             <option value="none">Room expires: never</option>
             <option value="3600">1 hour</option>
             <option value="7200">2 hours</option>
@@ -73,7 +74,7 @@ defmodule HangoutWeb.HomeLive do
             <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
           <% end %>
         </div>
-      </div>
+      </main>
     </div>
     """
   end

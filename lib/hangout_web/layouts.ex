@@ -14,6 +14,7 @@ defmodule HangoutWeb.Layouts do
         <script defer phx-track-static src="/assets/app.js"></script>
         <style>
           :root, [data-theme="dark"] {
+            color-scheme: dark;
             --bg: #11100f;
             --panel: #191816;
             --panel-2: #211f1c;
@@ -37,6 +38,7 @@ defmodule HangoutWeb.Layouts do
           }
 
           [data-theme="light"] {
+            color-scheme: light;
             --bg: #f5f3ef;
             --panel: #ffffff;
             --panel-2: #eae7e1;
@@ -53,6 +55,22 @@ defmodule HangoutWeb.Layouts do
 
           *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+          /* --- Focus indicators --- */
+          :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+          }
+          input:focus-visible { outline: none; }
+
+          /* --- Reduced motion --- */
+          @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+              animation-duration: 0.01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: 0.01ms !important;
+            }
+          }
+
           body {
             font-family: var(--font-ui);
             background: var(--bg);
@@ -63,7 +81,7 @@ defmodule HangoutWeb.Layouts do
           }
 
           /* --- Layout --- */
-          .container { max-width: 960px; margin: 0 auto; padding: var(--sp-2) var(--sp-4); height: 100vh; display: flex; flex-direction: column; }
+          .container { max-width: 960px; margin: 0 auto; padding: var(--sp-2) var(--sp-4); height: var(--vvh, 100vh); display: flex; flex-direction: column; }
           .room-layout { display: flex; flex: 1; gap: var(--sp-4); min-height: 0; }
           .messages-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
@@ -109,10 +127,15 @@ defmodule HangoutWeb.Layouts do
             font-family: var(--font-mono);
             font-size: 0.6875rem;
             cursor: pointer;
-            padding: 0 0.25rem;
+            padding: 0.5rem;
             vertical-align: top;
             opacity: 0;
             transition: opacity 0.15s;
+            min-height: 44px;
+            min-width: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
           }
           .message:hover .copy-md { opacity: 1; }
           .copy-md:hover { color: var(--accent); }
@@ -125,14 +148,21 @@ defmodule HangoutWeb.Layouts do
             background: var(--panel-2);
             border: 1px solid var(--border);
             color: var(--muted);
-            padding: 0.2rem 0.5rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 4px;
             font-size: 0.75rem;
             font-family: var(--font-mono);
             cursor: pointer;
             z-index: 5;
+            min-height: 44px;
+            min-width: 44px;
           }
           .member-toggle:hover { color: var(--text); }
+          .member-drawer-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 9;
+          }
           .member-drawer {
             position: absolute;
             top: 2rem;
@@ -177,12 +207,13 @@ defmodule HangoutWeb.Layouts do
             background: none;
             border: 1px solid var(--border);
             color: var(--dim);
-            padding: 0.25rem 0.5rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 4px;
             cursor: pointer;
             font-size: 0.75rem;
             font-family: var(--font-mono);
             margin-right: 0.25rem;
+            min-height: 44px;
           }
           .voice-btn:hover { color: var(--text); border-color: var(--muted); }
           .voice-btn.voice-active { color: var(--accent); border-color: var(--accent); }
@@ -197,6 +228,7 @@ defmodule HangoutWeb.Layouts do
             padding: var(--sp-2) var(--sp-3);
             cursor: pointer;
             font-size: 0.875rem;
+            min-height: 44px;
           }
           .input-bar button:hover { color: var(--accent); }
           .send-error { color: var(--danger); font-size: 0.75rem; padding: 0.125rem 0; opacity: 0.8; }
@@ -242,10 +274,11 @@ defmodule HangoutWeb.Layouts do
             background: var(--panel-2);
             color: var(--muted);
             border: 1px solid var(--border);
-            padding: 0.2rem 0.5rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 4px;
             font-size: 0.75rem;
             cursor: pointer;
+            min-height: 44px;
           }
           .mod-controls button:hover { background: var(--border); color: var(--text); }
           .mod-controls button.danger { border-color: var(--danger); color: var(--danger); }
@@ -392,7 +425,7 @@ defmodule HangoutWeb.Layouts do
           .flash.info { background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid var(--accent); color: var(--accent); }
 
           /* --- Kick button --- */
-          .kick-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.6875rem; margin-left: auto; padding: 0 4px; opacity: 0.5; }
+          .kick-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.6875rem; margin-left: auto; padding: 0.5rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.5; }
           .kick-btn:hover { opacity: 1; }
 
           /* --- Mod link --- */
@@ -418,18 +451,50 @@ defmodule HangoutWeb.Layouts do
             background: var(--panel);
             border: 1px solid var(--border);
             color: var(--muted);
-            padding: 0.2rem 0.4rem;
+            padding: 0.5rem 0.6rem;
             border-radius: 4px;
             cursor: pointer;
             font-size: 0.875rem;
             z-index: 50;
             line-height: 1;
+            min-height: 44px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
           .theme-toggle:hover { color: var(--text); }
 
           @keyframes fade-in {
             from { opacity: 0; transform: translateY(4px); }
             to { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes msg-enter {
+            from { opacity: 0; transform: translateY(2px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+
+          /* --- Reconnection banner --- */
+          #connection-status {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: var(--sp-2) var(--sp-4);
+            background: color-mix(in srgb, var(--accent-2) 15%, var(--panel));
+            border-top: 2px solid var(--accent-2);
+            color: var(--accent-2);
+            font-size: 0.875rem;
+            text-align: center;
+            z-index: 200;
+          }
+          #connection-status.visible { display: block; }
+
+          /* --- Message entry animation --- */
+          .message {
+            animation: msg-enter 0.15s ease-out;
           }
 
           @media (max-width: 640px) {
@@ -449,6 +514,7 @@ defmodule HangoutWeb.Layouts do
           <script>document.getElementById('theme-btn').textContent=localStorage.getItem('hangout_theme')==='light'?'☾':'☀'</script>
         </button>
         {@inner_content}
+        <div id="connection-status" role="alert">Reconnecting...</div>
       </body>
     </html>
     """

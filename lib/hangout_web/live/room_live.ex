@@ -256,6 +256,10 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, mobile_members_open?: not socket.assigns.mobile_members_open?)}
   end
 
+  def handle_event("close_members", _params, socket) do
+    {:noreply, assign(socket, mobile_members_open?: false)}
+  end
+
   def handle_event("voice_join", _params, socket) do
     case ChannelServer.voice_join(socket.assigns.channel_name, socket.assigns.nick) do
       {:ok, peers} ->
@@ -384,7 +388,8 @@ defmodule HangoutWeb.RoomLive do
             </button>
 
             <%= if @mobile_members_open? do %>
-              <div class="member-drawer">
+              <div class="member-drawer-backdrop" phx-click="toggle_members"></div>
+              <div class="member-drawer" phx-window-keydown="close_members" phx-key="Escape">
                 <%= for member <- (if @joined?, do: @participants, else: @room_members) do %>
                   <div class="nick-entry">
                     <%= if :o in (member[:modes] || member.modes || []) do %>
