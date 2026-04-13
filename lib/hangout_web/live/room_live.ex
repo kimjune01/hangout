@@ -106,35 +106,41 @@ defmodule HangoutWeb.RoomLive do
     if body == "" or not socket.assigns.joined? do
       {:noreply, socket}
     else
-      {kind, text} =
-        if String.starts_with?(body, "/me ") do
-          {:action, String.trim_leading(body, "/me ")}
-        else
-          {:privmsg, body}
-        end
+      case Hangout.SecretFilter.check(body) do
+        {:secret, kind} ->
+          {:noreply, assign(socket, :send_error, "Message blocked — looks like a #{kind}. Don't paste secrets in chat.")}
 
-      case ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text) do
-        {:ok, _msg} ->
-          socket =
-            socket
-            |> assign(:send_error, nil)
-
-          socket =
-            if not socket.assigns[:asked_notifications?] do
-              socket
-              |> assign(:asked_notifications?, true)
-              |> push_event("hangout:ask_notifications", %{})
+        {:ok, _body} ->
+          {kind, text} =
+            if String.starts_with?(body, "/me ") do
+              {:action, String.trim_leading(body, "/me ")}
             else
-              socket
+              {:privmsg, body}
             end
 
-          {:noreply, socket}
+          case ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text) do
+            {:ok, _msg} ->
+              socket =
+                socket
+                |> assign(:send_error, nil)
 
-        {:error, reason} when reason in [:rate_limited, :body_too_long, :moderated] ->
-          {:noreply, assign(socket, :send_error, human_error(reason))}
+              socket =
+                if not socket.assigns[:asked_notifications?] do
+                  socket
+                  |> assign(:asked_notifications?, true)
+                  |> push_event("hangout:ask_notifications", %{})
+                else
+                  socket
+                end
 
-        {:error, reason} ->
-          {:noreply, put_flash(socket, :error, human_error(reason))}
+              {:noreply, socket}
+
+            {:error, reason} when reason in [:rate_limited, :body_too_long, :moderated] ->
+              {:noreply, assign(socket, :send_error, human_error(reason))}
+
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, human_error(reason))}
+          end
       end
     end
   end
