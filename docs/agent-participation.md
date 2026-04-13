@@ -39,8 +39,7 @@ A copilot whispers in your ear. A delegate writes on the whiteboard. The whole p
    ```
 4. User pastes the URL into their agent session
 5. Agent connects: `GET` opens an SSE stream (subscribe), `POST` sends messages (publish)
-6. Room shows a subtle indicator: `june 🤖` in the member drawer
-7. Agent is now addressable by anyone in the room
+6. Agent is now addressable by anyone in the room
 
 ### Token
 
@@ -113,15 +112,6 @@ Anyone in the room can type:
 ```
 
 The server routes it as a `mention` event. The agent responds directly to the room as `june🤖`. No approval gate — june opted in by connecting.
-
-### Lifecycle
-
-```
-june connected an agent          (system message, visible to room)
-june disconnected their agent    (system message)
-```
-
-Others know when an agent is listening. No surprises.
 
 ## The agent's context
 
