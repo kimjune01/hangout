@@ -57,8 +57,6 @@ defmodule HangoutWeb.AgentController do
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
                  :ok <- AgentToken.check_rate_limit(token),
                  {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, raw_body) do
-              AgentToken.record_dedup(token, client_msg_id)
-
               conn
               |> put_status(200)
               |> json(%{
@@ -67,30 +65,34 @@ defmodule HangoutWeb.AgentController do
                 "at" => DateTime.to_iso8601(msg.at)
               })
             else
-              {:error, :rate_limited} ->
-                conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
-
               {:error, :duplicate} ->
                 conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
 
+              {:error, :rate_limited} ->
+                AgentToken.release_dedup(token, client_msg_id)
+                conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
+
               {:secret, kind} ->
-                conn
-                |> put_status(422)
-                |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
+                AgentToken.release_dedup(token, client_msg_id)
+                conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
 
               {:error, :body_too_long} ->
+                AgentToken.release_dedup(token, client_msg_id)
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
 
               {:error, :agent_muted} ->
+                AgentToken.release_dedup(token, client_msg_id)
                 conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_muted"})
 
               {:error, :no_such_channel} ->
+                AgentToken.release_dedup(token, client_msg_id)
                 conn |> put_status(404) |> json(%{"ok" => false, "error" => "room_ended"})
 
               false ->
                 conn |> put_status(400) |> json(%{"ok" => false, "error" => "body_required"})
 
               {:error, reason} ->
+                AgentToken.release_dedup(token, client_msg_id)
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => to_string(reason)})
             end
 
@@ -128,14 +130,15 @@ defmodule HangoutWeb.AgentController do
                 {:agent_draft, %{body: raw_body, from: metadata.owner_nick}}
               )
 
-              AgentToken.record_dedup(token, client_msg_id)
               conn |> put_status(200) |> json(%{"ok" => true})
             else
               {false, :type} -> conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
               {false, :size} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
               {:secret, kind} -> conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
               {:error, :duplicate} -> conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
-              {:error, :rate_limited} -> conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
+              {:error, :rate_limited} ->
+                AgentToken.release_dedup(token, client_msg_id)
+                conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
             end
 
           {:error, _} ->

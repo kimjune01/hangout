@@ -110,52 +110,52 @@ defmodule Hangout.AgentToken do
 
   def check_rate_limit(raw_token, max_per_minute \\ 6) do
     token_hash = hash_token(raw_token)
-    now = System.monotonic_time(:millisecond)
-    window_ms = 60_000
+    # Fixed-window rate limit keyed by {token_hash, minute_bucket}
+    minute = div(System.monotonic_time(:second), 60)
+    key = {token_hash, minute}
 
-    timestamps =
-      case :ets.lookup(@rate_table, token_hash) do
-        [{^token_hash, existing}] -> existing
-        [] -> []
-      end
+    # Ensure entry exists, then atomically increment
+    :ets.insert_new(@rate_table, {key, 0})
+    count = :ets.update_counter(@rate_table, key, {2, 1})
 
-    recent = Enum.filter(timestamps, &(now - &1 < window_ms))
-
-    if length(recent) >= max_per_minute do
+    if count > max_per_minute do
       {:error, :rate_limited}
     else
-      :ets.insert(@rate_table, {token_hash, [now | recent]})
       :ok
     end
   end
 
+  @doc "Atomically reserve a client_msg_id. Returns :ok or {:error, :duplicate}."
   def check_dedup(_raw_token, nil), do: :ok
   def check_dedup(_raw_token, ""), do: :ok
 
   def check_dedup(raw_token, client_msg_id) when is_binary(client_msg_id) do
     token_hash = hash_token(raw_token)
     key = {token_hash, client_msg_id}
+    now = System.monotonic_time(:millisecond)
 
-    case :ets.lookup(@dedup_table, key) do
-      [{^key, _inserted_at}] -> {:error, :duplicate}
-      [] -> :ok
+    # insert_new is atomic — only one concurrent caller wins
+    if :ets.insert_new(@dedup_table, {key, now}) do
+      prune_dedup(token_hash)
+      :ok
+    else
+      {:error, :duplicate}
     end
   end
 
   def check_dedup(_raw_token, _client_msg_id), do: :ok
 
-  def record_dedup(_raw_token, nil), do: :ok
-  def record_dedup(_raw_token, ""), do: :ok
+  @doc "Release a dedup reservation on publish failure."
+  def release_dedup(_raw_token, nil), do: :ok
+  def release_dedup(_raw_token, ""), do: :ok
 
-  def record_dedup(raw_token, client_msg_id) when is_binary(client_msg_id) do
+  def release_dedup(raw_token, client_msg_id) when is_binary(client_msg_id) do
     token_hash = hash_token(raw_token)
-    key = {token_hash, client_msg_id}
-    :ets.insert(@dedup_table, {key, System.monotonic_time(:millisecond)})
-    prune_dedup(token_hash)
+    :ets.delete(@dedup_table, {token_hash, client_msg_id})
     :ok
   end
 
-  def record_dedup(_raw_token, _client_msg_id), do: :ok
+  def release_dedup(_raw_token, _client_msg_id), do: :ok
 
   def hash_token(raw_token), do: :crypto.hash(:sha256, raw_token)
 
