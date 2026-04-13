@@ -365,6 +365,10 @@ defmodule HangoutWeb.RoomLive do
           </div>
           <div class="badges">
             <%= if @joined? do %>
+              <%= if @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
+                <button class="mod-link-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@mod_capability_url)}).then(() => { this.textContent='✓ copied'; setTimeout(() => this.textContent='copy mod link (save this)', 2000) })"}>copy mod link (save this)</button>
+                <button class="mod-link-dismiss" phx-click="dismiss_mod_banner" aria-label="Dismiss">✕</button>
+              <% end %>
               <%= if @modes[:i] do %>
                 <span class="lock-badge" title="Room is locked">🔒</span>
               <% end %>
@@ -408,13 +412,6 @@ defmodule HangoutWeb.RoomLive do
             <% end %>
 
             <div class="messages" id="messages" phx-hook="Scroll">
-              <%= if @joined? && @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
-                <div class="mod-link-banner" style="margin-bottom: 0.5rem;">
-                  <span class="label">Mod link (save this):</span>
-                  <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
-                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.875rem;min-height:44px;" aria-label="Dismiss mod banner">✕</button>
-                </div>
-              <% end %>
 
               <%= if @joined? do %>
                 <%= if @messages == [] do %>

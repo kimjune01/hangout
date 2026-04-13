@@ -251,6 +251,27 @@ defmodule HangoutWeb.Layouts do
           .header .lock-badge { color: var(--accent-2); }
           .header .ttl-badge { color: var(--accent); }
           .header .member-count { font-family: var(--font-mono); font-size: 0.8125rem; }
+          .mod-link-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .mod-link-btn:hover { color: var(--accent); border-color: var(--accent); }
+          .mod-link-dismiss {
+            background: none;
+            border: none;
+            color: var(--dim);
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 0.25rem;
+          }
+          .mod-link-dismiss:hover { color: var(--text); }
 
           /* --- Mod controls --- */
           .mod-controls {
