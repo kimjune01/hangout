@@ -36,7 +36,7 @@ A copilot whispers in your ear. A delegate writes on the whiteboard. The whole p
 2. Info modal shows **"Invite your agent"**
 3. A URL appears, scoped to their identity:
    ```
-   https://chat.june.kim/agent/agt_a1b2c3...
+   https://chat.june.kim/hangout/agent/agt_a1b2c3...
    ```
 4. User pastes the URL into their agent session
 5. Agent connects: `GET` opens an SSE stream (subscribe), `POST` sends messages or drafts (publish)
@@ -62,12 +62,12 @@ Agent URLs pasted into chat are automatically redacted by the secret filter.
 ### API surface
 
 ```
-GET  /agent/<token>/events    → SSE stream of room messages
-POST /agent/<token>/messages  → publish a message to the room
-POST /agent/<token>/drafts    → place a draft in owner's input bar
+GET  /<room>/agent/<token>/events    → SSE stream of room messages
+POST /<room>/agent/<token>/messages  → publish a message to the room
+POST /<room>/agent/<token>/drafts    → place a draft in owner's input bar
 ```
 
-Three endpoints. Separate from the browser room URL to avoid accidental leakage.
+Three endpoints. Room name is always explicit in the agent URL — the bare domain shortcut is browser-only. Separate path from the browser room URL to avoid accidental leakage.
 
 **Server-enforced routing:**
 - Responses to `forward` events → must use `/drafts` (owner approval required)
