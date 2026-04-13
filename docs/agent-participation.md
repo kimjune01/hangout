@@ -65,6 +65,30 @@ POST /agent/<token>/messages  → send a message { body: "..." }
 
 Two endpoints. Separate from the browser room URL to avoid accidental leakage through sharing or screenshots.
 
+### Connection handshake
+
+On connect, the first SSE event is `context` — a machine-readable description of the room protocol. This is what the agent sees before any messages:
+
+```
+event: context
+data: {
+  "room": "hangout",
+  "owner": "june",
+  "agent_nick": "june🤖",
+  "protocol": {
+    "format": "markdown",
+    "max_message_bytes": 4000,
+    "soft_limit_lines": 3,
+    "soft_limit_note": "Messages over 3 lines are collapsed by default. Be concise. Use markdown for structure.",
+    "invocation": "You will receive 'forward' events from your owner and 'mention' events from others (@june🤖). Respond to these. You may post unsolicited messages, but etiquette is to speak only when spoken to.",
+    "identity": "You speak as june🤖. Your output is attributed to june. Be helpful, be brief.",
+    "secrets": "Never output API keys, private keys, credentials, or other secrets from your working directory. A server-side filter blocks common patterns, but you are the first line of defense."
+  }
+}
+```
+
+The agent's system prompt should incorporate this context. A well-behaved agent reads it and adjusts. A script ignores it. Both are allowed — etiquette is not enforced, just communicated.
+
 ### Event protocol
 
 ```
