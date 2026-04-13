@@ -386,6 +386,20 @@ function randomPlaceholder(current) {
   return next;
 }
 
+function playPing() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.2);
+}
+
 const MessageForm = {
   mounted() {
     this.notificationsEnabled = false;
@@ -423,10 +437,11 @@ const MessageForm = {
     });
 
     this.handleEvent("hangout:message", (payload) => {
-      // Unread count in tab title
+      // Unread count in tab title + sound
       if (document.hidden) {
         this.unreadCount++;
         document.title = `(${this.unreadCount}) ${this.baseTitle}`;
+        playPing();
       }
 
       // Browser notification
