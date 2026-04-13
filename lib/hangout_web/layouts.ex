@@ -282,7 +282,12 @@ defmodule HangoutWeb.Layouts do
             white-space: nowrap;
           }
           .guest-list .more { color: var(--dim); }
-          .join-form { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+          .join-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+          }
           .nick-prompt input {
             background: transparent;
             border: none;
