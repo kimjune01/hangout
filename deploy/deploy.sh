@@ -1,6 +1,9 @@
 #!/bin/bash
 # deploy.sh — Deploy Hangout to Lightsail instance
-# Run on the server: cd ~/hangout && bash deploy/deploy.sh
+#
+# Usage:
+#   bash deploy/deploy.sh          # run from local machine (SSHes to server)
+#   bash deploy/deploy.sh --local  # run on the server itself
 #
 # Lessons learned:
 # - Lightsail nano (512MB) OOMs during mix compile. Add 1GB swap first.
@@ -13,6 +16,15 @@
 # - LiveView JS (app.js) must be built with esbuild into priv/static/assets/ or phx-submit won't work.
 # - Without app.js, forms fall back to plain HTML GET — no WebSocket, no LiveView.
 set -e
+
+SSH_KEY="$HOME/.ssh/hangout-key.pem"
+SSH_HOST="ubuntu@34.235.93.199"
+
+if [ "$1" != "--local" ]; then
+  echo "==> Deploying via SSH to $SSH_HOST..."
+  ssh -i "$SSH_KEY" -o ConnectTimeout=10 "$SSH_HOST" 'cd ~/hangout && git pull && bash deploy/deploy.sh --local'
+  exit $?
+fi
 
 echo "==> Pulling latest..."
 git pull

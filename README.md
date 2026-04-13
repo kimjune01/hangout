@@ -115,14 +115,14 @@ DEFAULT_ROOM=june         # optional: skip home page, go straight to this room
 
 ## Deploy
 
-Deployed to AWS Lightsail ($3.50/mo) with Caddy for TLS.
+Deployed to AWS Lightsail ($3.50/mo) with Caddy for TLS at `chat.june.kim`.
 
 ```bash
-# One-time setup on server
-bash deploy/setup.sh
-
-# Each deploy
+# From your local machine (SSHes to server, pulls, builds, restarts)
 bash deploy/deploy.sh
+
+# One-time setup on a fresh server
+ssh -i ~/.ssh/hangout-key.pem ubuntu@<ip> 'cd ~/hangout && bash deploy/setup.sh'
 ```
 
 See `deploy/` for Caddyfile, systemd unit, and setup/deploy scripts with lessons learned.
