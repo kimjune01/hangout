@@ -14,17 +14,24 @@ const liveSocket = new LiveSocket("/live", Socket, {
 
 liveSocket.connect();
 
-// Connection status banner
+// Connection status banner + auto-reload on deploy
 const connBanner = document.getElementById("connection-status");
+let wasDisconnected = false;
+
 if (connBanner) {
   window.addEventListener("phx:page-loading-start", (info) => {
-    // Only show for reconnections, not normal navigation
     if (info.detail?.kind === "error" || info.detail?.kind === "initial") {
       connBanner.classList.add("visible");
+      wasDisconnected = true;
     }
   });
   window.addEventListener("phx:page-loading-stop", () => {
     connBanner.classList.remove("visible");
+    // If we reconnected after a disconnect, the server likely restarted.
+    // Reload to pick up new JS/HTML.
+    if (wasDisconnected) {
+      window.location.reload();
+    }
   });
 }
 
