@@ -55,7 +55,7 @@ defmodule Hangout.SecretFilter do
     {~r/\b(?:[a-z]{3,8}\s+){11,23}[a-z]{3,8}\b/, "possible recovery phrase"},
 
     # Agent invite URLs
-    {~r/\/agent\/agt_[a-zA-Z0-9]+/, "agent invite URL"},
+    {~r/\/agent\/agt_[A-Za-z0-9_-]{40,}/, "agent invite URL"},
   ]
 
   @doc """

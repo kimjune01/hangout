@@ -297,10 +297,7 @@ defmodule HangoutWeb.RoomLive do
            )}
 
         {:error, :active_token_exists} ->
-          {:noreply,
-           socket
-           |> assign(agent_connected?: true)
-           |> put_flash(:error, "An agent invite is already active for this nick.")}
+          {:noreply, put_flash(socket, :error, "An agent invite is already active for this nick.")}
 
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, human_error(reason))}
@@ -871,6 +868,26 @@ defmodule HangoutWeb.RoomLive do
       |> push_event("voice:peer_left", %{nick: nick})
 
     if nick == socket.assigns.nick, do: assign(socket, in_voice?: false), else: socket
+  end
+
+  defp apply_event(socket, {:user_mode_changed, _server, nick, _channel, mode, value}) do
+    participants =
+      Enum.map(socket.assigns.participants, fn member ->
+        if member.nick == nick do
+          modes = if value, do: [mode | member.modes], else: List.delete(member.modes, mode)
+          %{member | modes: Enum.uniq(modes)}
+        else
+          member
+        end
+      end)
+
+    socket = assign(socket, participants: participants)
+
+    if nick == socket.assigns.nick and mode == :o do
+      assign(socket, moderator?: value)
+    else
+      socket
+    end
   end
 
   defp apply_event(socket, _event), do: socket

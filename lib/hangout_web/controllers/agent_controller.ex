@@ -49,8 +49,8 @@ defmodule HangoutWeb.AgentController do
             body = params["body"] || ""
             client_msg_id = params["client_msg_id"]
 
-            with :ok <- AgentToken.check_rate_limit(token),
-                 :ok <- AgentToken.check_dedup(token, client_msg_id),
+            with :ok <- AgentToken.check_dedup(token, client_msg_id),
+                 :ok <- AgentToken.check_rate_limit(token),
                  {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, body) do
               conn
               |> put_status(200)
@@ -101,10 +101,14 @@ defmodule HangoutWeb.AgentController do
       {:ok, metadata} ->
         case request_body(conn) do
           {:ok, params} ->
-            body = params["body"] || ""
+            raw_body = params["body"]
+            body = if is_binary(raw_body), do: raw_body, else: ""
             max_bytes = Application.get_env(:hangout, :message_body_max_bytes, 4000)
 
             cond do
+              not is_binary(raw_body) ->
+                conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
+
               byte_size(body) > max_bytes ->
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
 
