@@ -471,26 +471,76 @@ defmodule HangoutWeb.Layouts do
           .room-ended h2 { font-family: var(--font-mono); color: var(--muted); margin-bottom: 1rem; }
           .room-ended a { color: var(--accent); }
 
-          .theme-toggle {
+          /* --- Info menu --- */
+          .info-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1.125rem;
+            padding: 0.25rem;
+            line-height: 1;
+          }
+          .info-btn:hover { color: var(--text); }
+          .info-backdrop {
             position: fixed;
-            top: 0.5rem;
-            right: 0.5rem;
+            inset: 0;
+            z-index: 99;
+          }
+          .info-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: var(--panel);
             border: 1px solid var(--border);
-            color: var(--muted);
-            padding: 0.5rem 0.6rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            z-index: 50;
-            line-height: 1;
-            min-height: 44px;
-            min-width: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 8px;
+            padding: var(--sp-4);
+            z-index: 100;
+            min-width: 280px;
+            max-width: 360px;
+            width: 90vw;
+            animation: fade-in 0.15s ease-out;
           }
-          .theme-toggle:hover { color: var(--text); }
+          .info-modal h3 {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--muted);
+            margin-bottom: var(--sp-3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+          .info-modal ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+          }
+          .info-modal li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9375rem;
+          }
+          .info-modal li:last-child { border-bottom: none; }
+          .info-modal a {
+            color: var(--accent);
+            text-decoration: none;
+          }
+          .info-modal a:hover { text-decoration: underline; }
+          .info-modal button {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.9375rem;
+            padding: 0;
+            font-family: inherit;
+          }
+          .info-modal button:hover { text-decoration: underline; }
+          .info-modal .hint {
+            color: var(--dim);
+            font-size: 0.75rem;
+            margin-top: 0.125rem;
+          }
 
           @keyframes fade-in {
             from { opacity: 0; transform: translateY(4px); }
@@ -537,9 +587,6 @@ defmodule HangoutWeb.Layouts do
         </script>
       </head>
       <body>
-        <button class="theme-toggle" aria-label="Toggle theme" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)" id="theme-btn">
-          <script>document.getElementById('theme-btn').textContent=localStorage.getItem('hangout_theme')==='light'?'☾':'☀'</script>
-        </button>
         {@inner_content}
         <div id="connection-status" role="alert">Reconnecting...</div>
       </body>
