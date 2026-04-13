@@ -383,7 +383,7 @@ defmodule HangoutWeb.RoomLive do
         <div id="voice-hook" phx-hook="Voice" style="display:none"></div>
         <main class="room-layout">
           <div class="messages-panel" style="position: relative;">
-            <button class="member-toggle" phx-click="toggle_members" aria-expanded={to_string(@mobile_members_open?)} aria-label="Toggle member list">
+            <button class="member-toggle" phx-click="toggle_members" aria-expanded={to_string(@mobile_members_open?)} aria-label="Toggle member list" style={"animation: count-flash 0.6s ease-out"} id={"member-count-#{if @joined?, do: length(@participants), else: length(@room_members)}"}>
               <%= if @joined?, do: length(@participants), else: length(@room_members) %> in room
             </button>
 
@@ -427,7 +427,7 @@ defmodule HangoutWeb.RoomLive do
                       <% :privmsg -> %>
                         <span class="nick" style={"color: #{nick_color(msg.from)}"}>{msg.from}:</span>
                         <%= if Hangout.Markdown.has_markdown?(msg.body) do %>
-                          <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)})"} title="Copy markdown" aria-label="Copy">📋</button>
+                          <button class="copy-md" onclick={"navigator.clipboard.writeText(#{Jason.encode!(msg.body)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy markdown" aria-label="Copy">📋</button>
                           <div class="md-body">{Hangout.Markdown.render(msg.body)}</div>
                         <% else %>
                           {msg.body}

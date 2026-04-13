@@ -94,7 +94,8 @@ defmodule HangoutWeb.Layouts do
             border-radius: 6px;
             border: 1px solid var(--border);
           }
-          .message { padding: 3px 0; line-height: 1.5; font-size: 1rem; max-width: 78ch; }
+          @keyframes msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+          .message { padding: 3px 0; line-height: 1.5; font-size: 1rem; max-width: 78ch; animation: msg-in 0.15s ease-out; }
           .message .nick { font-family: var(--font-mono); font-weight: 600; font-size: 0.9375rem; }
           .message .time { font-family: var(--font-mono); color: var(--dim); font-size: 0.8125rem; margin-right: var(--sp-2); }
           .message.system {
@@ -104,6 +105,8 @@ defmodule HangoutWeb.Layouts do
             padding-left: var(--sp-2);
             font-size: 0.9375rem;
           }
+          @keyframes gentle-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+          .message.system:only-child { animation: gentle-pulse 3s ease-in-out infinite; }
           .message.action { color: var(--accent); }
           .message.notice { color: var(--accent-2); }
 
@@ -153,6 +156,8 @@ defmodule HangoutWeb.Layouts do
             min-height: 44px;
             min-width: 44px;
           }
+          @keyframes count-flash { 0% { color: var(--accent); } 100% { color: var(--muted); } }
+          .member-toggle { transition: color 0.3s ease; }
           .member-toggle:hover { color: var(--text); }
           .member-drawer-backdrop {
             position: fixed;
@@ -197,6 +202,7 @@ defmodule HangoutWeb.Layouts do
             font-size: 1rem;
             font-family: var(--font-ui);
             outline: none;
+            transition: border-bottom-color 0.2s ease;
           }
           .input-bar input:focus { border-bottom-color: var(--accent); }
           .voice-btn {
@@ -227,6 +233,8 @@ defmodule HangoutWeb.Layouts do
             min-height: 44px;
           }
           .input-bar button:hover { color: var(--accent); }
+          .input-bar button[type="submit"] { transition: transform 0.1s ease; }
+          .input-bar button[type="submit"]:active { transform: scale(1.3); }
           .send-error { color: var(--danger); font-size: 0.75rem; padding: 0.125rem 0; opacity: 0.8; }
 
           /* --- Header --- */
