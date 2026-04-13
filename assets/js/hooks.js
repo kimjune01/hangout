@@ -389,8 +389,20 @@ function randomPlaceholder(current) {
 const MessageForm = {
   mounted() {
     this.notificationsEnabled = false;
+    this.unreadCount = 0;
+    const h1 = document.querySelector("h1");
+    this.baseTitle = h1 ? h1.textContent.trim() : document.title;
+    document.title = this.baseTitle;
     const input = this.el.querySelector("input[name=body]");
     if (input) input.placeholder = randomPlaceholder();
+
+    // Clear unread count when tab becomes visible
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        this.unreadCount = 0;
+        document.title = this.baseTitle;
+      }
+    });
 
     // Clear input on submit, occasionally change placeholder (~1 in 5)
     this.el.addEventListener("submit", () => {
@@ -411,6 +423,13 @@ const MessageForm = {
     });
 
     this.handleEvent("hangout:message", (payload) => {
+      // Unread count in tab title
+      if (document.hidden) {
+        this.unreadCount++;
+        document.title = `(${this.unreadCount}) ${this.baseTitle}`;
+      }
+
+      // Browser notification
       if (!this.notificationsEnabled || !document.hidden) return;
       if (Notification.permission !== "granted") return;
       const title = payload.channel ? `#${payload.channel}` : "Hangout";
