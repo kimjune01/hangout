@@ -30,6 +30,21 @@ defmodule Hangout.SecretFilter do
     {~r/sk-[a-zA-Z0-9]{32,}/, "OpenAI API key"},
     {~r/sk-ant-[a-zA-Z0-9-]{80,}/, "Anthropic API key"},
 
+    # Google
+    {~r/AIza[0-9A-Za-z\-_]{35}/, "Google API key"},
+
+    # Twilio
+    {~r/SK[0-9a-fA-F]{32}/, "Twilio key"},
+
+    # SendGrid
+    {~r/SG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}/, "SendGrid key"},
+
+    # Discord
+    {~r/[MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27,}/, "Discord bot token"},
+
+    # SSN
+    {~r/\b\d{3}-\d{2}-\d{4}\b/, "social security number"},
+
     # Credit card numbers (Luhn-plausible 13-19 digit sequences)
     {~r/\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b/, "credit card number"},
 
