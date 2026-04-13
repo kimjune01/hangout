@@ -44,6 +44,7 @@ defmodule Hangout.AgentToken do
     case :ets.lookup(@table, token_hash) do
       [{^token_hash, metadata}] ->
         :ets.insert(@table, {token_hash, %{metadata | revoked_at: DateTime.utc_now()}})
+        Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(token_hash), {:agent_revoked, token_hash})
         :ok
 
       [] ->
@@ -60,6 +61,7 @@ defmodule Hangout.AgentToken do
       fn {hash, metadata}, count ->
         if same_agent?(metadata, room_id, nick) and active_metadata?(metadata, now) do
           :ets.insert(@table, {hash, %{metadata | revoked_at: now}})
+          Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(hash), {:agent_revoked, hash})
           count + 1
         else
           count
@@ -200,7 +202,7 @@ defmodule Hangout.AgentToken do
             %{state | rooms: MapSet.put(state.rooms, room_id)}
           end
 
-        {:reply, token, state}
+        {:reply, {:ok, token}, state}
     end
   end
 

@@ -13,7 +13,7 @@ defmodule HangoutWeb.AgentControllerTest do
 
     {:ok, _snapshot, mod_token} = ChannelServer.join(channel, participant(owner, owner_pid))
     {:ok, _snapshot, _token} = ChannelServer.join(channel, participant("alice", other_pid))
-    token = AgentToken.create(channel, owner, "fp")
+    {:ok, token} = AgentToken.create(channel, owner, "fp")
     flush_messages()
 
     on_exit(fn ->
@@ -72,7 +72,7 @@ defmodule HangoutWeb.AgentControllerTest do
     assert is_binary(body["at"])
 
     assert_receive {:hangout_event, {:message, ^channel, msg}}, 500
-    assert msg.from == owner <> "🤖"
+    assert msg.from == owner
     assert msg.agent == true
     assert msg.body == "hello from agent"
   end

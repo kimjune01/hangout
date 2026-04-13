@@ -201,7 +201,7 @@ defmodule Hangout.ChannelServer do
     with :ok <- can_agent_send?(state),
          :ok <- validate_body(body),
          {:ok, body} <- SecretFilter.check(body) do
-      msg = build_message(state, owner_nick <> "🤖", :privmsg, body, true)
+      msg = build_message(state, owner_nick, :privmsg, body, true)
       state = append_buffer(state, msg)
 
       broadcast(state, {:message, state.name, msg})
@@ -727,6 +727,9 @@ defmodule Hangout.ChannelServer do
     state.name
     |> AgentToken.active_for_room()
     |> Enum.filter(&mentions_owner?(body, &1.owner_nick))
+    |> Enum.reject(fn metadata ->
+      String.downcase(msg.from) == String.downcase(metadata.owner_nick)
+    end)
     |> Enum.each(fn metadata ->
       event = {
         :hangout_event,

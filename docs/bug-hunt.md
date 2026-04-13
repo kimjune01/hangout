@@ -229,3 +229,100 @@ Scope read: every requested file under `lib/` and `test/`.
 - Severity: low
 - What's wrong: the test binds `token` but calls `ChannelServer.set_topic/3` without passing it. It passes because the first joiner is an operator, not because token authorization works.
 - How to fix it: either remove the unused token and assert operator-topic behavior explicitly, or use a non-op member plus `ChannelServer.set_topic(channel, nick, topic, token)` to test token auth.
+
+## Agent participation bugs
+
+### 1. Invite-your-agent crashes because token creation return shape is mismatched
+
+- File and function: `lib/hangout_web/live/room_live.ex:288` in `handle_event("generate_agent_token", ...)`, and `lib/hangout/agent_token.ex:165` in `handle_call({:create, ...})`
+- Category: crash
+- Severity: high
+- What's wrong: `Hangout.AgentToken.create/3` returns the raw token string on success, but the LiveView handler only matches `{:ok, token}`. Clicking "Invite your agent" falls through the `case` and raises `CaseClauseError`; the tests call `AgentToken.create/3` directly and therefore miss the UI path.
+- Impact: browser users cannot generate an agent invite URL from the info modal.
+- How to fix it: either change `AgentToken.create/3` to return `{:ok, token}` and update existing callers/tests, or add a binary-token success branch in the LiveView handler.
+
+### 2. The SSE endpoint rejects normal EventSource clients
+
+- File and function: `lib/hangout_web/router.ex:13` in the `:agent_api` pipeline, and `lib/hangout_web/controllers/agent_controller.ex:7` in `events/2`
+- Category: integration
+- Severity: high
+- What's wrong: the whole agent API pipeline uses `plug :accepts, ["json"]`. Browser `EventSource` and many SSE clients send `Accept: text/event-stream`, so Plug can reject `GET /:room/agent/:token/events` before the controller can set `text/event-stream`.
+- Impact: conforming SSE clients may get a 406 response and never receive `context`, `history`, `message`, `mention`, or `forward` events.
+- How to fix it: use a separate pipeline for the SSE route that accepts `text/event-stream` or both `json` and `text/event-stream`, while keeping JSON acceptance for POST endpoints.
+
+### 3. Revoking a token does not disconnect an already-open SSE stream
+
+- File and function: `lib/hangout/agent_token.ex:41` in `revoke/1`, `lib/hangout/agent_token.ex:56` in `revoke_for_nick/2`, and `lib/hangout_web/controllers/agent_controller.ex:194` in `sse_loop/1`
+- Category: security
+- Severity: high
+- What's wrong: `events/2` validates the bearer token only once, then stays subscribed to the room PubSub topic. `revoke/1` and `revoke_for_nick/2` update ETS but do not broadcast to the active agent stream, and `sse_loop/1` never revalidates the token.
+- Impact: "Disconnect agent", kick, part, or mod revocation can stop future POSTs but the existing SSE connection can continue reading room messages until the connection drops or the room ends.
+- How to fix it: on revoke, broadcast a token-revoked event to `AgentToken.agent_topic(token_hash)` and have `sse_loop/1` close. Also consider validating token state before each room event or tracking active stream processes per token.
+
+### 4. Server-enforced routing for forward versus mention is missing
+
+- File and function: `lib/hangout_web/controllers/agent_controller.ex:44` in `messages/2`, `lib/hangout_web/controllers/agent_controller.ex:99` in `drafts/2`, and `lib/hangout_web/live/room_live.ex:318` in `handle_event("forward_to_agent", ...)`
+- Category: spec violation
+- Severity: high
+- What's wrong: the spec says responses to `forward` events must use `/drafts`, responses to `mention` events may use `/messages`, and unsolicited posts are not allowed. The implementation does not record issued invocation IDs or expected response routes; any holder of a valid token can call `/messages` or `/drafts` at any time.
+- Impact: an agent can bypass owner approval after a forward by posting directly to the room, or can post unsolicited messages without any current mention/forward event.
+- How to fix it: include a server-generated invocation id and route in `forward`/`mention` events, persist pending invocations keyed by token, require POSTs to reference one, enforce the expected endpoint, and consume/deduplicate the invocation.
+
+### 5. Owner mentions route as direct-to-room agent invocations
+
+- File and function: `lib/hangout/channel_server.ex:724` in `route_mentions/2`
+- Category: logic
+- Severity: high
+- What's wrong: mention routing checks active agent tokens and the `@<owner>🤖` pattern, but it does not skip messages sent by the owner. The spec's trust rule says the owner invokes their own agent through click-to-forward and gets a draft for approval; direct mention auto-posting is for anyone else.
+- Impact: if `june` types `@june🤖 ...`, the agent receives a `mention` event and can respond through `/messages` as `june🤖` without the approval gate.
+- How to fix it: when routing mentions, skip metadata where `String.downcase(msg.from) == String.downcase(metadata.owner_nick)` and route owner-originated invocations only through the forward/draft path.
+
+### 6. Draft POSTs skip the same safety checks as messages
+
+- File and function: `lib/hangout_web/controllers/agent_controller.ex:99` in `drafts/2`
+- Category: security
+- Severity: high
+- What's wrong: `/drafts` accepts arbitrary `body` and broadcasts it into the owner's input bar without `validate_body/1`, `SecretFilter.check/1`, rate limiting, or idempotency. `/messages` does those checks through `AgentToken.check_rate_limit/2`, `check_dedup/2`, and `ChannelServer.agent_message/3`.
+- Impact: a compromised or buggy agent can push very large drafts or likely secrets into the browser UI, and can flood draft updates even though the spec defines `message_too_large`, `secret_detected`, `rate_limited`, and `duplicate` errors for the agent POST surface.
+- How to fix it: make draft submission go through the same body size, secret, rate-limit, and dedup checks as message submission, and return the same JSON error envelope.
+
+### 7. Agent messages render with a double robot suffix in LiveView
+
+- File and function: `lib/hangout/channel_server.ex:200` in `handle_call({:agent_message, ...})`, and `lib/hangout_web/live/room_live.ex:977` in `display_nick/1`
+- Category: UI integration
+- Severity: medium
+- What's wrong: `ChannelServer.agent_message/3` stores agent messages with `from: owner_nick <> "🤖"` and `agent: true`. LiveView then renders any message with `agent: true` as `msg.from <> "🤖"`.
+- Impact: a message from `june`'s agent displays as `june🤖🤖`, while the spec says it should display as `june🤖`.
+- How to fix it: choose one representation. Either store `from: owner_nick` with `agent: true` and append the suffix at render/serialization boundaries, or store `from: owner_nick <> "🤖"` and make `display_nick/1` return `msg.from` for agent messages.
+
+### 8. LiveView can post as the agent without an active agent or draft
+
+- File and function: `lib/hangout_web/live/room_live.ex:109` in `handle_event("send_message", ...)`, and `lib/hangout_web/live/room_live.ex:907` in `send_room_message/4`
+- Category: security
+- Severity: medium
+- What's wrong: the hidden `agent_draft` field controls whether a submitted message calls `ChannelServer.agent_message/3`. The server does not verify that a draft was actually delivered, that an agent token is active, or that the draft corresponds to a pending forward.
+- Impact: a user can craft a LiveView event or DOM submission with `agent_draft=true` and publish arbitrary messages as `nick🤖`, creating agent-attributed messages without the agent participation flow.
+- How to fix it: keep server-side draft state with a nonce/invocation id when an `:agent_draft` arrives, require that nonce on submit, and clear it after send/discard. Do not trust the hidden field alone.
+
+### 9. The UI treats "token generated" as "agent connected"
+
+- File and function: `lib/hangout_web/live/room_live.ex:288` in `handle_event("generate_agent_token", ...)`, `lib/hangout_web/live/room_live.ex:526` in `render/1`, and `lib/hangout_web/live/room_live.ex:318` in `handle_event("forward_to_agent", ...)`
+- Category: integration
+- Severity: medium
+- What's wrong: `agent_connected?` is set when an invite token is generated, not when an SSE client subscribes. The forward button is shown whenever that assign is true, and clicking it broadcasts a `forward` event to the token PubSub topic even if no agent is connected to receive it.
+- Impact: users can forward messages into the void and believe their agent is participating. Mentions before the SSE connection exists are also dropped because invocation events are ephemeral PubSub broadcasts.
+- How to fix it: track active SSE subscriptions per token, update LiveView presence/state when the stream connects or disconnects, and show/enable forwarding only while the agent stream is active. Alternatively label the state as "invite active" and queue/reject forwards until connected.
+
+### 10. There is no moderator path to disconnect another user's agent
+
+- File and function: `lib/hangout_web/live/info_modal.ex:36` in `info_modal/1`, `lib/hangout_web/live/room_live.ex:313` in `handle_event("revoke_agent_token", ...)`, and `lib/hangout/channel_server.ex:672` in `remove_member/2`
+- Category: spec violation
+- Severity: medium
+- What's wrong: the spec says mods can disconnect an agent without kicking the user. The implemented UI only lets the owner revoke their current token, while `remove_member/2` revokes as a side effect of part/kick. There is no moderator event/API for revoking an active agent by nick while keeping the user in the room.
+- Impact: moderation cannot stop a misbehaving agent without muting the whole room or kicking the owner, which violates the moderation contract.
+- How to fix it: add a moderator-only LiveView action and/or ChannelServer call that validates moderator authority and calls `AgentToken.revoke_for_nick(room, target_nick)` without removing the participant, then notify the owner and active SSE stream.
+
+### Test run
+
+- Command: `mix test`
+- Result: blocked before tests ran. Mix 1.19.5 failed to start `Mix.PubSub` because `Mix.Sync.PubSub.subscribe/1` could not open a TCP socket: `:eperm`. Retrying with `MIX_NO_SYNC=1 mix test` produced the same startup failure.

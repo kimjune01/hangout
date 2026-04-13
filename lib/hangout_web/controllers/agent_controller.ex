@@ -102,15 +102,27 @@ defmodule HangoutWeb.AgentController do
         case request_body(conn) do
           {:ok, params} ->
             body = params["body"] || ""
-            room_id = "#" <> room
+            max_bytes = Application.get_env(:hangout, :message_body_max_bytes, 4000)
 
-            Phoenix.PubSub.broadcast(
-              Hangout.PubSub,
-              "agent_draft:#{room_id}:#{metadata.owner_nick}",
-              {:agent_draft, %{body: body, from: metadata.owner_nick}}
-            )
+            cond do
+              byte_size(body) > max_bytes ->
+                conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
 
-            conn |> put_status(200) |> json(%{"ok" => true})
+              match?({:secret, _}, Hangout.SecretFilter.check(body)) ->
+                {:secret, kind} = Hangout.SecretFilter.check(body)
+                conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
+
+              true ->
+                room_id = "#" <> room
+
+                Phoenix.PubSub.broadcast(
+                  Hangout.PubSub,
+                  "agent_draft:#{room_id}:#{metadata.owner_nick}",
+                  {:agent_draft, %{body: body, from: metadata.owner_nick}}
+                )
+
+                conn |> put_status(200) |> json(%{"ok" => true})
+            end
 
           {:error, _} ->
             conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
@@ -252,6 +264,10 @@ defmodule HangoutWeb.AgentController do
           {:ok, conn} -> sse_loop(conn)
           {:error, _} -> conn
         end
+
+      {:agent_revoked, _token_hash} ->
+        _ = chunk(conn, sse_event("system", %{"body" => "Token revoked"}))
+        conn
 
       {:hangout_event, _other} ->
         sse_loop(conn)

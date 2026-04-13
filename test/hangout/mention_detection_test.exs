@@ -13,7 +13,7 @@ defmodule Hangout.MentionDetectionTest do
 
     {:ok, _snapshot, _token} = ChannelServer.join(room, owner)
     {:ok, _snapshot, _token} = ChannelServer.join(room, sender)
-    agent_token = AgentToken.create(room, owner.nick, "fp")
+    {:ok, agent_token} = AgentToken.create(room, owner.nick, "fp")
 
     Phoenix.PubSub.subscribe(
       Hangout.PubSub,

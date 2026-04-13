@@ -23,7 +23,7 @@ defmodule Hangout.AgentTokenTest do
     slug: slug,
     owner: owner
   } do
-    assert "agt_" <> encoded = token = AgentToken.create(room, owner, "fp")
+    assert {:ok, "agt_" <> encoded = token} = AgentToken.create(room, owner, "fp")
     assert byte_size(encoded) >= 43
 
     assert {:ok, metadata} = AgentToken.validate(slug, token)
@@ -35,17 +35,17 @@ defmodule Hangout.AgentTokenTest do
   end
 
   test "revoke invalidates a token", %{room: room, slug: slug, owner: owner} do
-    token = AgentToken.create(room, owner, "fp")
+    {:ok, token} = AgentToken.create(room, owner, "fp")
     assert :ok = AgentToken.revoke(token)
     assert {:error, :token_revoked} = AgentToken.validate(slug, token)
   end
 
   test "one active agent per nick per room", %{room: room, owner: owner} do
-    token = AgentToken.create(room, owner, "fp")
+    {:ok, token} = AgentToken.create(room, owner, "fp")
     assert {:error, :active_token_exists} = AgentToken.create(room, owner, "fp2")
 
     :ok = AgentToken.revoke(token)
-    assert "agt_" <> _replacement = AgentToken.create(room, owner, "fp2")
+    assert {:ok, "agt_" <> _replacement} = AgentToken.create(room, owner, "fp2")
   end
 
   test "revoke_for_nick revokes active tokens for that nick", %{
@@ -53,7 +53,7 @@ defmodule Hangout.AgentTokenTest do
     slug: slug,
     owner: owner
   } do
-    token = AgentToken.create(room, owner, "fp")
+    {:ok, token} = AgentToken.create(room, owner, "fp")
     assert 1 = AgentToken.revoke_for_nick(room, owner)
     assert {:error, :token_revoked} = AgentToken.validate(slug, token)
   end
@@ -70,7 +70,7 @@ defmodule Hangout.AgentTokenTest do
       end
     end)
 
-    token = AgentToken.create(room, owner, "fp")
+    {:ok, token} = AgentToken.create(room, owner, "fp")
     Process.sleep(10)
     assert {:error, :token_expired} = AgentToken.validate(slug, token)
   end
@@ -81,7 +81,7 @@ defmodule Hangout.AgentTokenTest do
     owner: owner,
     mod_token: mod_token
   } do
-    token = AgentToken.create(room, owner, "fp")
+    {:ok, token} = AgentToken.create(room, owner, "fp")
     assert :ok = ChannelServer.end_room(room, owner, mod_token)
     Process.sleep(50)
     assert {:error, reason} = AgentToken.validate(slug, token)

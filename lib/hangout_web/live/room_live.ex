@@ -904,8 +904,13 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
-  defp send_room_message(socket, _kind, text, true) do
-    ChannelServer.agent_message(socket.assigns.channel_name, socket.assigns.nick, text)
+  defp send_room_message(socket, kind, text, true) do
+    if socket.assigns[:agent_connected?] and is_binary(socket.assigns[:agent_token]) do
+      ChannelServer.agent_message(socket.assigns.channel_name, socket.assigns.nick, text)
+    else
+      # No active agent — treat as normal message, ignore the flag
+      ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text)
+    end
   end
 
   defp send_room_message(socket, kind, text, false) do

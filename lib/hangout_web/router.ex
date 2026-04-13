@@ -14,10 +14,17 @@ defmodule HangoutWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :agent_sse do
+    plug :accepts, ["json", "html", "text"]
+  end
+
+  scope "/:room/agent", HangoutWeb do
+    pipe_through :agent_sse
+    get "/:token/events", AgentController, :events
+  end
+
   scope "/:room/agent", HangoutWeb do
     pipe_through :agent_api
-
-    get "/:token/events", AgentController, :events
     post "/:token/messages", AgentController, :messages
     post "/:token/drafts", AgentController, :drafts
   end
