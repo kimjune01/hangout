@@ -315,8 +315,10 @@ defmodule HangoutWeb.Layouts do
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            width: 100%;
             min-height: 100%;
             padding: var(--sp-8) var(--sp-4);
+            text-align: center;
             animation: fade-in 0.2s ease;
           }
           .messages:has(.entry-content) { display: flex; }

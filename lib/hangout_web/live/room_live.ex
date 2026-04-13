@@ -374,9 +374,8 @@ defmodule HangoutWeb.RoomLive do
           </div>
           <div class="badges">
             <%= if @joined? do %>
-              <%= if @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
+              <%= if @moderator? && @mod_capability_url do %>
                 <button class="mod-link-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@mod_capability_url)}).then(() => { this.textContent='✓ copied'; setTimeout(() => this.textContent='copy mod link (save this)', 2000) })"}>copy mod link (save this)</button>
-                <button class="mod-link-dismiss" phx-click="dismiss_mod_banner" aria-label="Dismiss">✕</button>
               <% end %>
               <%= if @modes[:i] do %>
                 <span class="lock-badge" title="Room is locked">🔒</span>
