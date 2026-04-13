@@ -8,7 +8,7 @@ defmodule Hangout.ChannelServer do
   require Logger
 
   @max_buffer Application.compile_env(:hangout, :max_buffer_size, 100)
-  @body_max_bytes Application.compile_env(:hangout, :message_body_max_bytes, 400)
+  @body_max_bytes Application.compile_env(:hangout, :message_body_max_bytes, 4000)
   @server_name "hangout"
 
   defstruct name: nil,

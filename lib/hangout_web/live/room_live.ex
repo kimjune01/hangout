@@ -504,7 +504,7 @@ defmodule HangoutWeb.RoomLive do
                     placeholder="say something"
                     autocomplete="off"
                     autofocus
-                    maxlength="400"
+                    maxlength="4000"
                     id="message-input"
                     aria-label="Message"
                     phx-hook="AutoFocus"

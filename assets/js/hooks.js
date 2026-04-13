@@ -61,10 +61,7 @@ function collapseOverflow(container) {
 
   for (const msg of container.querySelectorAll(".message:not(.system):not([data-collapse-checked])")) {
     msg.dataset.collapseChecked = "";
-    // Measure the text content area (everything after time + nick)
-    const body = msg.querySelector(".md-body");
-    if (!body) continue;
-    if (body.scrollHeight > threshold) {
+    if (msg.scrollHeight > threshold) {
       msg.classList.add("collapsed");
       const toggle = document.createElement("button");
       toggle.className = "collapse-toggle";
@@ -73,7 +70,7 @@ function collapseOverflow(container) {
         const isCollapsed = msg.classList.toggle("collapsed");
         toggle.textContent = isCollapsed ? "show more" : "show less";
       });
-      msg.appendChild(toggle);
+      msg.after(toggle);
     }
   }
 }

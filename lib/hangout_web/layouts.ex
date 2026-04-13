@@ -140,12 +140,13 @@ defmodule HangoutWeb.Layouts do
           .copy-md:hover { color: var(--accent); }
 
           /* --- Collapse long messages --- */
-          .message.collapsed .md-body {
+          .message.collapsed {
             max-height: 4.5em; /* 3 lines × 1.5 line-height */
             overflow: hidden;
             -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
             mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
           }
+          .message.collapsed + .collapse-toggle { margin-top: -0.25rem; }
           .collapse-toggle {
             background: none;
             border: none;
