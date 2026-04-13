@@ -389,9 +389,7 @@ defmodule HangoutWeb.RoomLive do
                 </span>
               <% end %>
             <% end %>
-            <button class="info-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)">
-              <script>document.getElementById('theme-btn').textContent=localStorage.getItem('hangout_theme')==='light'?'☾':'☀'</script>
-            </button>
+            <button class="info-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme" phx-hook="ThemeToggle" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)">☀</button>
             <button class="info-btn" phx-click="toggle_info" aria-label="Info" title="Info">💬</button>
           </div>
 

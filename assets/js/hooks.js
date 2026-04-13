@@ -607,4 +607,10 @@ const AutoFocus = {
   },
 };
 
-export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown, AutoFocus };
+const ThemeToggle = {
+  mounted() {
+    this.el.textContent = document.documentElement.getAttribute("data-theme") === "light" ? "☾" : "☀";
+  },
+};
+
+export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown, AutoFocus, ThemeToggle };
