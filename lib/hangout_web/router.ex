@@ -13,7 +13,7 @@ defmodule HangoutWeb.Router do
   scope "/", HangoutWeb do
     pipe_through :browser
 
-    live "/", HomeLive, :index
+    live "/", RoomLive, :show
     live "/:slug", RoomLive, :show
   end
 end

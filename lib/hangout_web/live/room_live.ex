@@ -8,7 +8,8 @@ defmodule HangoutWeb.RoomLive do
   # --- Mount & Lifecycle ---
 
   @impl true
-  def mount(%{"slug" => slug} = params, _session, socket) do
+  def mount(params, _session, socket) do
+    slug = Map.get(params, "slug") || Application.get_env(:hangout, :default_room, "hangout")
     channel_name = "##{slug}"
     mod_token = Map.get(params, "mod")
     ttl_seconds = parse_ttl(Map.get(params, "ttl"))
