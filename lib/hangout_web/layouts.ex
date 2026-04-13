@@ -180,8 +180,8 @@ defmodule HangoutWeb.Layouts do
           }
           .voice-btn:hover { color: var(--text); border-color: var(--muted); }
           .voice-btn.voice-active { color: var(--accent); border-color: var(--accent); }
-          .voice-btn.voice-speaking { box-shadow: 0 0 0 3px rgba(124, 199, 178, 0.4); }
-          @keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 0 2px rgba(124, 199, 178, 0.3); } 50% { box-shadow: 0 0 0 5px rgba(124, 199, 178, 0.5); } }
+          .voice-btn.voice-speaking { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
+          @keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 50%, transparent); } }
           .voice-btn.voice-speaking { animation: voice-pulse 0.6s ease-in-out infinite; }
           .input-bar input::placeholder { color: var(--dim); }
           .input-bar button {
@@ -382,8 +382,8 @@ defmodule HangoutWeb.Layouts do
 
           /* --- Flash messages --- */
           .flash { padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.875rem; margin-bottom: 0.5rem; }
-          .flash.error { background: rgba(255, 107, 99, 0.1); border: 1px solid var(--danger); color: var(--danger); }
-          .flash.info { background: rgba(124, 199, 178, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+          .flash.error { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid var(--danger); color: var(--danger); }
+          .flash.info { background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid var(--accent); color: var(--accent); }
 
           /* --- Kick button --- */
           .kick-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.6875rem; margin-left: auto; padding: 0 4px; opacity: 0.5; }
@@ -439,7 +439,7 @@ defmodule HangoutWeb.Layouts do
         </script>
       </head>
       <body>
-        <button class="theme-toggle" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)" id="theme-btn">
+        <button class="theme-toggle" aria-label="Toggle theme" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)" id="theme-btn">
           <script>document.getElementById('theme-btn').textContent=localStorage.getItem('hangout_theme')==='light'?'☾':'☀'</script>
         </button>
         {@inner_content}

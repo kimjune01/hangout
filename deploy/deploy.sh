@@ -25,7 +25,7 @@ mix deps.get --only prod
 
 echo "==> Building assets..."
 mix assets.setup
-mix assets.deploy
+mix assets.build
 
 echo "==> Compiling..."
 mix compile

@@ -366,18 +366,41 @@ defmodule HangoutWeb.RoomLive do
           </div>
         </div>
 
-        <%= if @joined? && @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
-          <div class="mod-link-banner">
-            <span class="label">Mod link (save this):</span>
-            <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
-            <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;">dismiss</button>
-          </div>
-        <% end %>
-
         <div id="voice-hook" phx-hook="Voice" style="display:none"></div>
         <div class="room-layout">
           <div class="messages-panel" style="position: relative;">
+            <button class="member-toggle" phx-click="toggle_members" aria-expanded={to_string(@mobile_members_open?)} aria-label="Toggle member list">
+              <%= if @joined?, do: length(@participants), else: length(@room_members) %> in room
+            </button>
+
+            <%= if @mobile_members_open? do %>
+              <div class="member-drawer">
+                <%= for member <- (if @joined?, do: @participants, else: @room_members) do %>
+                  <div class="nick-entry">
+                    <%= if :o in (member[:modes] || member.modes || []) do %>
+                      <span class="op-badge">@</span>
+                    <% end %>
+                    <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
+                    <%= if member[:bot?] || member.bot? do %>
+                      <span class="bot-badge">[bot]</span>
+                    <% end %>
+                    <%= if @joined? and @moderator? and member.nick != @nick do %>
+                      <button class="kick-btn" phx-click="kick_user" phx-value-nick={member.nick} title="Kick">x</button>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+
             <div class="messages" id="messages" phx-hook="Scroll">
+              <%= if @joined? && @moderator? && @mod_capability_url && !@mod_banner_dismissed? do %>
+                <div class="mod-link-banner" style="margin-bottom: 0.5rem;">
+                  <span class="label">Mod link (save this):</span>
+                  <a href={@mod_capability_url} style="font-family:var(--font-mono);color:var(--accent);word-break:break-all;font-size:0.75rem;">{@mod_capability_url}</a>
+                  <button phx-click="dismiss_mod_banner" style="background:none;border:none;color:var(--dim);cursor:pointer;margin-left:auto;font-size:0.75rem;">dismiss</button>
+                </div>
+              <% end %>
+
               <%= if @joined? do %>
                 <%= for msg <- @messages do %>
                   <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
@@ -426,29 +449,6 @@ defmodule HangoutWeb.RoomLive do
                   </div>
                 </div>
               <% end %>
-
-              <button class="member-toggle" phx-click="toggle_members">
-                <%= if @joined?, do: length(@participants), else: length(@room_members) %> in room
-              </button>
-
-              <%= if @mobile_members_open? do %>
-                <div class="member-drawer">
-                  <%= for member <- (if @joined?, do: @participants, else: @room_members) do %>
-                    <div class="nick-entry">
-                      <%= if :o in (member[:modes] || member.modes || []) do %>
-                        <span class="op-badge">@</span>
-                      <% end %>
-                      <span style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
-                      <%= if member[:bot?] || member.bot? do %>
-                        <span class="bot-badge">[bot]</span>
-                      <% end %>
-                      <%= if @joined? and @moderator? and member.nick != @nick do %>
-                        <button class="kick-btn" phx-click="kick_user" phx-value-nick={member.nick} title="Kick">x</button>
-                      <% end %>
-                    </div>
-                  <% end %>
-                </div>
-              <% end %>
             </div>
 
             <div class="input-bar">
@@ -470,6 +470,8 @@ defmodule HangoutWeb.RoomLive do
                     autofocus
                     maxlength="400"
                     id="message-input"
+                    aria-label="Message"
+                    phx-hook="AutoFocus"
                   />
                   <button type="submit">Send</button>
                 </form>
@@ -482,6 +484,7 @@ defmodule HangoutWeb.RoomLive do
                     placeholder="your name"
                     autocomplete="off"
                     autofocus
+                    aria-label="your name"
                     style="font-family: var(--font-mono);"
                   />
                   <button type="submit" style="background:var(--accent);color:var(--btn-text);border:none;padding:0.4rem 1rem;border-radius:4px;cursor:pointer;font-weight:600;white-space:nowrap;">

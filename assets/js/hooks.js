@@ -528,4 +528,17 @@ const Voice = {
   },
 };
 
-export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown };
+// --- AutoFocus Hook ---
+// Focuses the element on mount. HTML autofocus only works on initial page load,
+// not on LiveView patches (e.g. after join or nick reset).
+
+const AutoFocus = {
+  mounted() {
+    this.el.focus();
+  },
+  updated() {
+    this.el.focus();
+  },
+};
+
+export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown, AutoFocus };
