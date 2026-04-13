@@ -28,6 +28,12 @@ defmodule HangoutWeb.Layouts do
             --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
             --btn-text: var(--bg);
+            --sp-1: 0.25rem;
+            --sp-2: 0.5rem;
+            --sp-3: 0.75rem;
+            --sp-4: 1rem;
+            --sp-6: 1.5rem;
+            --sp-8: 2rem;
           }
 
           [data-theme="light"] {
@@ -57,27 +63,27 @@ defmodule HangoutWeb.Layouts do
           }
 
           /* --- Layout --- */
-          .container { max-width: 960px; margin: 0 auto; padding: 0.5rem 1rem; height: 100vh; display: flex; flex-direction: column; }
-          .room-layout { display: flex; flex: 1; gap: 1rem; min-height: 0; }
+          .container { max-width: 960px; margin: 0 auto; padding: var(--sp-2) var(--sp-4); height: 100vh; display: flex; flex-direction: column; }
+          .room-layout { display: flex; flex: 1; gap: var(--sp-4); min-height: 0; }
           .messages-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
           /* --- Messages --- */
           .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 0.75rem 1rem;
+            padding: var(--sp-3) var(--sp-4);
             background: var(--panel);
             border-radius: 6px;
             border: 1px solid var(--border);
           }
           .message { padding: 3px 0; line-height: 1.5; font-size: 1rem; max-width: 78ch; }
           .message .nick { font-family: var(--font-mono); font-weight: 600; font-size: 0.9375rem; }
-          .message .time { font-family: var(--font-mono); color: var(--dim); font-size: 0.8125rem; margin-right: 0.5rem; }
+          .message .time { font-family: var(--font-mono); color: var(--dim); font-size: 0.8125rem; margin-right: var(--sp-2); }
           .message.system {
             color: var(--muted);
             font-style: normal;
             border-left: 2px solid var(--border);
-            padding-left: 0.5rem;
+            padding-left: var(--sp-2);
             font-size: 0.9375rem;
           }
           .message.action { color: var(--accent); }
@@ -130,11 +136,11 @@ defmodule HangoutWeb.Layouts do
           .member-drawer {
             position: absolute;
             top: 2rem;
-            right: 0.5rem;
+            right: var(--sp-2);
             background: var(--panel);
             border: 1px solid var(--border);
             border-radius: 6px;
-            padding: 0.5rem 0.75rem;
+            padding: var(--sp-2) var(--sp-3);
             max-height: 50%;
             overflow-y: auto;
             z-index: 10;
@@ -145,11 +151,11 @@ defmodule HangoutWeb.Layouts do
           .nick-entry .op-badge { color: var(--accent-2); font-family: var(--font-mono); }
 
           /* --- Input bar --- */
-          .input-bar { display: flex; align-items: center; gap: 0; padding: 0.5rem 0; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); }
+          .input-bar { display: flex; align-items: center; gap: 0; padding: var(--sp-2) 0; padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom, 0px)); }
           .input-bar .nick-label {
             font-family: var(--font-mono);
             color: var(--muted);
-            padding: 0.5rem 0;
+            padding: var(--sp-2) 0;
             font-size: 0.875rem;
             white-space: nowrap;
             user-select: none;
@@ -161,7 +167,7 @@ defmodule HangoutWeb.Layouts do
             border: none;
             border-bottom: 1px solid var(--border);
             color: var(--text);
-            padding: 0.5rem 0.5rem;
+            padding: var(--sp-2) var(--sp-2);
             font-size: 1rem;
             font-family: var(--font-ui);
             outline: none;
@@ -188,24 +194,25 @@ defmodule HangoutWeb.Layouts do
             background: none;
             color: var(--dim);
             border: none;
-            padding: 0.5rem 0.75rem;
+            padding: var(--sp-2) var(--sp-3);
             cursor: pointer;
             font-size: 0.875rem;
           }
           .input-bar button:hover { color: var(--accent); }
+          .send-error { color: var(--danger); font-size: 0.75rem; padding: 0.125rem 0; opacity: 0.8; }
 
           /* --- Header --- */
           .header {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            padding: 0.5rem 0;
+            padding: var(--sp-2) 0;
             border-bottom: 1px solid var(--border);
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--sp-2);
           }
           .header h1 { font-family: var(--font-mono); font-size: 1.125rem; color: var(--text); font-weight: 600; }
-          .header .topic { font-size: 0.875rem; color: var(--muted); margin-left: 1rem; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .header .badges { display: flex; gap: 0.5rem; align-items: center; font-size: 0.8125rem; color: var(--muted); flex-shrink: 0; }
+          .header .topic { font-size: 0.875rem; color: var(--muted); margin-left: var(--sp-4); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .header .badges { display: flex; gap: var(--sp-2); align-items: center; font-size: 0.8125rem; color: var(--muted); flex-shrink: 0; }
           .header .lock-badge { color: var(--accent-2); }
           .header .ttl-badge { color: var(--accent); }
           .header .member-count { font-family: var(--font-mono); font-size: 0.8125rem; }
@@ -223,7 +230,6 @@ defmodule HangoutWeb.Layouts do
             list-style: none;
             font-family: var(--font-mono);
           }
-          .mod-controls summary::before { content: "⚙ room controls"; }
           .mod-controls summary:hover { color: var(--text); }
           .mod-controls summary::-webkit-details-marker { display: none; }
           .mod-controls .mod-buttons {
@@ -252,7 +258,7 @@ defmodule HangoutWeb.Layouts do
             align-items: center;
             justify-content: center;
             min-height: 100%;
-            padding: 2rem 1rem;
+            padding: var(--sp-8) var(--sp-4);
             animation: fade-in 0.2s ease;
           }
           .messages:has(.entry-content) { display: flex; }
@@ -272,7 +278,7 @@ defmodule HangoutWeb.Layouts do
             flex-wrap: wrap;
             justify-content: center;
             gap: 0.25rem 0.75rem;
-            margin-bottom: 2rem;
+            margin-bottom: var(--sp-8);
             font-family: var(--font-mono);
             font-size: 0.9375rem;
             max-width: 28rem;
@@ -333,13 +339,13 @@ defmodule HangoutWeb.Layouts do
             font-size: 0.8125rem;
             color: var(--dim);
             text-align: center;
-            margin-top: 2rem;
+            margin-top: var(--sp-8);
             max-width: 28rem;
             margin-left: auto;
             margin-right: auto;
             line-height: 1.5;
           }
-          .social-contract p + p { margin-top: 0.25rem; }
+          .social-contract p + p { margin-top: var(--sp-1); }
 
           /* --- Home form --- */
           .home-form { max-width: 24rem; margin: 6rem auto; text-align: center; }
@@ -381,7 +387,7 @@ defmodule HangoutWeb.Layouts do
           .home-form button:hover { opacity: 0.9; }
 
           /* --- Flash messages --- */
-          .flash { padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.875rem; margin-bottom: 0.5rem; }
+          .flash { padding: var(--sp-2) var(--sp-3); border-radius: 4px; font-size: 0.875rem; margin-bottom: var(--sp-2); }
           .flash.error { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid var(--danger); color: var(--danger); }
           .flash.info { background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid var(--accent); color: var(--accent); }
 
@@ -392,9 +398,9 @@ defmodule HangoutWeb.Layouts do
           /* --- Mod link --- */
           .mod-link-banner {
             background: var(--panel-2);
-            padding: 0.5rem 0.75rem;
+            padding: var(--sp-2) var(--sp-3);
             border-radius: 4px;
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--sp-2);
             font-size: 0.8125rem;
           }
           .mod-link-banner .label { color: var(--accent-2); }
@@ -427,7 +433,7 @@ defmodule HangoutWeb.Layouts do
           }
 
           @media (max-width: 640px) {
-            .container { padding: 0.5rem; }
+            .container { padding: var(--sp-2); }
             .message { max-width: none; }
           }
         </style>

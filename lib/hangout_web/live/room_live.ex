@@ -53,7 +53,8 @@ defmodule HangoutWeb.RoomLive do
         legal_url: Application.get_env(:hangout, :legal_url),
         room_population: room_population,
         room_members: room_members,
-        page_title: "##{slug}"
+        page_title: "##{slug}",
+        send_error: nil
       )
 
     {:ok, socket}
@@ -89,6 +90,7 @@ defmodule HangoutWeb.RoomLive do
       true ->
         case join_channel(socket, nick) do
           {:ok, socket} ->
+            socket = append_you_joined(socket)
             {:noreply, push_event(socket, "hangout:nick_set", %{nick: socket.assigns.nick})}
           {:error, reason, socket} ->
             {:noreply, put_flash(socket, :error, human_error(reason))}
@@ -112,6 +114,10 @@ defmodule HangoutWeb.RoomLive do
       case ChannelServer.message(socket.assigns.channel_name, socket.assigns.nick, kind, text) do
         {:ok, _msg} ->
           socket =
+            socket
+            |> assign(:send_error, nil)
+
+          socket =
             if not socket.assigns[:asked_notifications?] do
               socket
               |> assign(:asked_notifications?, true)
@@ -121,6 +127,9 @@ defmodule HangoutWeb.RoomLive do
             end
 
           {:noreply, socket}
+
+        {:error, reason} when reason in [:rate_limited, :body_too_long, :moderated] ->
+          {:noreply, assign(socket, :send_error, human_error(reason))}
 
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, human_error(reason))}
@@ -296,6 +305,7 @@ defmodule HangoutWeb.RoomLive do
       {nick, false} when is_binary(nick) and nick != "" ->
         case join_channel(socket, nick) do
           {:ok, socket} ->
+            socket = append_you_joined(socket)
             {:noreply, push_event(socket, "hangout:nick_set", %{nick: socket.assigns.nick})}
           {:error, _reason, socket} ->
             # Saved nick failed (in use, invalid) — show the prompt
@@ -402,6 +412,9 @@ defmodule HangoutWeb.RoomLive do
               <% end %>
 
               <%= if @joined? do %>
+                <%= if @messages == [] do %>
+                  <div class="message system" style="text-align: center; margin-top: 2rem;">No messages yet.</div>
+                <% end %>
                 <%= for msg <- @messages do %>
                   <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
                     <span class="time">{format_time(msg.at)}</span>
@@ -455,9 +468,9 @@ defmodule HangoutWeb.RoomLive do
               <%= if @joined? do %>
                 <%= if @voice_enabled? do %>
                   <%= if @in_voice? do %>
-                    <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">mic</button>
+                    <button class="voice-btn voice-active" phx-click="voice_leave" title="Leave voice">leave voice</button>
                   <% else %>
-                    <button class="voice-btn" phx-click="voice_join" title="Join voice">mic</button>
+                    <button class="voice-btn" phx-click="voice_join" title="Join voice">voice</button>
                   <% end %>
                 <% end %>
                 <button class="nick-label" phx-click="reset_nick" title="Change name">{@nick}</button>
@@ -494,9 +507,13 @@ defmodule HangoutWeb.RoomLive do
               <% end %>
             </div>
 
+            <%= if @send_error do %>
+              <div class="send-error">{@send_error}</div>
+            <% end %>
+
             <%= if @moderator? do %>
               <details class="mod-controls">
-                <summary></summary>
+                <summary>Room controls</summary>
                 <div class="mod-buttons">
                   <%= if @modes[:i] do %>
                     <button phx-click="unlock_room">Unlock</button>
@@ -618,12 +635,38 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
-  defp apply_event(socket, {:user_joined, _channel, member}) do
-    assign(socket, participants: upsert_member(socket.assigns.participants, member))
+  defp apply_event(socket, {:user_joined, channel, member}) do
+    socket = assign(socket, participants: upsert_member(socket.assigns.participants, member))
+
+    if member.nick != socket.assigns.nick do
+      msg = %Hangout.Message{
+        id: System.unique_integer([:positive]),
+        at: DateTime.utc_now(),
+        from: "hangout",
+        target: channel,
+        kind: :system,
+        body: "#{member.nick} joined"
+      }
+
+      assign(socket, messages: append_message(socket.assigns.messages, msg))
+    else
+      socket
+    end
   end
 
-  defp apply_event(socket, {:user_parted, _channel, member, _reason}) do
-    assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+  defp apply_event(socket, {:user_parted, channel, member, _reason}) do
+    socket = assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+
+    msg = %Hangout.Message{
+      id: System.unique_integer([:positive]),
+      at: DateTime.utc_now(),
+      from: "hangout",
+      target: channel,
+      kind: :system,
+      body: "#{member.nick} left"
+    }
+
+    assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
   defp apply_event(socket, {:user_kicked, _channel, _actor, member, reason}) do
@@ -639,13 +682,24 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
-  defp apply_event(socket, {:nick_changed, _channel, old, new}) do
+  defp apply_event(socket, {:nick_changed, channel, old, new}) do
     participants =
       Enum.map(socket.assigns.participants, fn member ->
         if member.nick == old, do: %{member | nick: new}, else: member
       end)
 
-    assign(socket, participants: participants)
+    msg = %Hangout.Message{
+      id: System.unique_integer([:positive]),
+      at: DateTime.utc_now(),
+      from: "hangout",
+      target: channel,
+      kind: :system,
+      body: "#{old} is now #{new}"
+    }
+
+    socket
+    |> assign(participants: participants)
+    |> assign(messages: append_message(socket.assigns.messages, msg))
   end
 
   defp apply_event(socket, {:topic_changed, _channel, _nick, topic}) do
@@ -678,8 +732,19 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, expires_at: expires_at)
   end
 
-  defp apply_event(socket, {:user_quit, _channel, member, _reason}) do
-    assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+  defp apply_event(socket, {:user_quit, channel, member, _reason}) do
+    socket = assign(socket, participants: reject_member(socket.assigns.participants, member.nick))
+
+    msg = %Hangout.Message{
+      id: System.unique_integer([:positive]),
+      at: DateTime.utc_now(),
+      from: "hangout",
+      target: channel,
+      kind: :system,
+      body: "#{member.nick} disconnected"
+    }
+
+    assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
   defp apply_event(socket, {:voice_joined, _channel, nick, peers}) do
@@ -715,6 +780,19 @@ defmodule HangoutWeb.RoomLive do
 
   defp reject_member(members, nick) do
     Enum.reject(members, &(&1.nick == nick))
+  end
+
+  defp append_you_joined(socket) do
+    msg = %Hangout.Message{
+      id: System.unique_integer([:positive]),
+      at: DateTime.utc_now(),
+      from: "hangout",
+      target: socket.assigns.channel_name,
+      kind: :system,
+      body: "You joined as #{socket.assigns.nick}"
+    }
+
+    assign(socket, messages: append_message(socket.assigns.messages, msg))
   end
 
   defp generate_nick, do: Naming.random_nick()
