@@ -51,9 +51,10 @@ defmodule HangoutWeb.AgentController do
         case request_body(conn) do
           {:ok, params} ->
             raw_body = params["body"]
-            client_msg_id = params["client_msg_id"]
+            raw_msg_id = params["client_msg_id"]
 
             with true <- is_binary(raw_body) and String.trim(raw_body) != "",
+                 {:ok, client_msg_id} <- validate_client_msg_id(raw_msg_id),
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
                  :ok <- AgentToken.check_rate_limit(token),
                  {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, raw_body) do
@@ -69,30 +70,33 @@ defmodule HangoutWeb.AgentController do
                 conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
 
               {:error, :rate_limited} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
 
               {:secret, kind} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => "secret_detected", "kind" => kind})
 
               {:error, :body_too_long} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => "message_too_large"})
 
               {:error, :agent_muted} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_muted"})
 
               {:error, :no_such_channel} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(404) |> json(%{"ok" => false, "error" => "room_ended"})
 
               false ->
                 conn |> put_status(400) |> json(%{"ok" => false, "error" => "body_required"})
 
+              {:error, :invalid_client_msg_id} ->
+                conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_client_msg_id"})
+
               {:error, reason} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(422) |> json(%{"ok" => false, "error" => to_string(reason)})
             end
 
@@ -114,11 +118,12 @@ defmodule HangoutWeb.AgentController do
         case request_body(conn) do
           {:ok, params} ->
             raw_body = params["body"]
-            client_msg_id = params["client_msg_id"]
+            raw_msg_id = params["client_msg_id"]
             max_bytes = Application.get_env(:hangout, :message_body_max_bytes, 4000)
 
             with {true, _} <- {is_binary(raw_body), :type},
                  {true, _} <- {byte_size(raw_body) <= max_bytes, :size},
+                 {:ok, client_msg_id} <- validate_client_msg_id(raw_msg_id),
                  {:ok, _} <- Hangout.SecretFilter.check(raw_body),
                  :ok <- check_room_mute("#" <> room),
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
@@ -139,8 +144,15 @@ defmodule HangoutWeb.AgentController do
               {:error, :agent_muted} -> conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_muted"})
               {:error, :duplicate} -> conn |> put_status(409) |> json(%{"ok" => false, "error" => "duplicate"})
               {:error, :rate_limited} ->
-                AgentToken.release_dedup(token, client_msg_id)
+                AgentToken.release_dedup(token, raw_msg_id)
                 conn |> put_status(429) |> json(%{"ok" => false, "error" => "rate_limited"})
+              {:error, :invalid_client_msg_id} ->
+                conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_client_msg_id"})
+              {:error, :no_such_channel} ->
+                conn |> put_status(404) |> json(%{"ok" => false, "error" => "room_ended"})
+              {:error, reason} ->
+                AgentToken.release_dedup(token, raw_msg_id)
+                conn |> put_status(422) |> json(%{"ok" => false, "error" => to_string(reason)})
             end
 
           {:error, _} ->
@@ -223,6 +235,11 @@ defmodule HangoutWeb.AgentController do
 
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
+
+  defp validate_client_msg_id(nil), do: {:ok, nil}
+  defp validate_client_msg_id(id) when is_binary(id) and byte_size(id) <= 128, do: {:ok, id}
+  defp validate_client_msg_id(id) when is_binary(id), do: {:error, :invalid_client_msg_id}
+  defp validate_client_msg_id(_), do: {:ok, nil}
 
   defp check_room_mute(channel_name) do
     case ChannelServer.snapshot(channel_name) do
