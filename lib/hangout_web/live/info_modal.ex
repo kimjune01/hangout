@@ -8,11 +8,6 @@ defmodule HangoutWeb.InfoModal do
       <h3>About this room</h3>
       <ul>
         <li>
-          <button onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'Switch to light mode':'Switch to dark mode'}).call(this)">
-            <script>document.currentScript.parentElement.textContent=document.documentElement.getAttribute('data-theme')==='light'?'Switch to dark mode':'Switch to light mode'</script>
-          </button>
-        </li>
-        <li>
           🔒 The room disappears when everyone leaves. No history is saved.
         </li>
         <li>
