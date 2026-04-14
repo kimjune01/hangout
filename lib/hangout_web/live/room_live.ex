@@ -62,6 +62,7 @@ defmodule HangoutWeb.RoomLive do
         agent_token_url: nil,
         agent_mode: :called,
         agent_modal_open?: false,
+        agent_tab: :agent,
         room_agent_policy: :called,
         room_agent_rate_limit: 6
       )
@@ -294,6 +295,10 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("toggle_agent_modal", _params, socket) do
     {:noreply, assign(socket, agent_modal_open?: not socket.assigns.agent_modal_open?)}
+  end
+
+  def handle_event("agent_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, agent_tab: String.to_existing_atom(tab))}
   end
 
   def handle_event("set_agent_mode", %{"mode" => mode_str}, socket) do
@@ -598,37 +603,48 @@ defmodule HangoutWeb.RoomLive do
             <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
             <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
               <%= if @moderator? do %>
+                <div class="agent-tabs">
+                  <button class={"agent-tab #{if @agent_tab == :agent, do: "active"}"} phx-click="agent_tab" phx-value-tab="agent">My agent</button>
+                  <button class={"agent-tab #{if @agent_tab == :room, do: "active"}"} phx-click="agent_tab" phx-value-tab="room">Room</button>
+                </div>
+              <% end %>
+
+              <%= if @agent_tab == :room and @moderator? do %>
                 <div class="agent-section">
                   <div class="agent-section-header">
-                    <span class="agent-section-label">Room</span>
+                    <span class="agent-section-label">Policy</span>
                     <span class={"agent-active-mode #{if @room_agent_policy == :unleashed, do: "danger"}"}><%= agent_policy_label(@room_agent_policy) %></span>
                   </div>
                   <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} />
-                  <div class="agent-section-header" style="margin-top: 0.25rem;">
-                    <span class="agent-section-label">Rate</span>
+                  <div class="hint"><%= agent_policy_desc(@room_agent_policy) %></div>
+                </div>
+                <div class="agent-section">
+                  <div class="agent-section-header">
+                    <span class="agent-section-label">Rate limit</span>
                     <span class="agent-active-mode">{@room_agent_rate_limit}/min</span>
                   </div>
                   <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" />
                 </div>
-              <% end %>
-              <div class="agent-section">
-                <div class="agent-section-header">
-                  <span class="agent-section-label">My agent</span>
-                  <span class={"agent-active-mode #{if @agent_mode == :unleashed, do: "danger"}"}><%= agent_policy_label(@agent_mode) %></span>
-                </div>
-                <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
-                <div class="hint" style="margin-top: 0.25rem;"><%= agent_mode_desc(@agent_mode) %></div>
-              </div>
-              <%= if @agent_token_url do %>
-                <div class="agent-url-row">
-                  <code class="agent-url">{@agent_token_url}</code>
-                  <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
-                </div>
-                <div class="hint">
-                  <%= if @agent_connected?, do: "🟢 connected", else: "⚪ waiting for agent…" %>
-                </div>
               <% else %>
-                <button class="agent-invite-btn" phx-click="generate_agent_token">Generate invite link</button>
+                <div class="agent-section">
+                  <div class="agent-section-header">
+                    <span class="agent-section-label">Freedom</span>
+                    <span class={"agent-active-mode #{if @agent_mode == :unleashed, do: "danger"}"}><%= agent_policy_label(@agent_mode) %></span>
+                  </div>
+                  <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
+                  <div class="hint"><%= agent_mode_desc(@agent_mode) %></div>
+                </div>
+                <%= if @agent_token_url do %>
+                  <div class="agent-url-row">
+                    <code class="agent-url">{@agent_token_url}</code>
+                    <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
+                  </div>
+                  <div class="hint">
+                    <%= if @agent_connected?, do: "🟢 connected", else: "⚪ waiting for agent…" %>
+                  </div>
+                <% else %>
+                  <button class="agent-invite-btn" phx-click="generate_agent_token">Generate invite link</button>
+                <% end %>
               <% end %>
             </div>
           <% end %>
