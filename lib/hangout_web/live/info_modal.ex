@@ -33,16 +33,10 @@ defmodule HangoutWeb.InfoModal do
         </li>
         <%= if @nick do %>
           <li>
-            <button phx-click="generate_agent_token">Invite your agent</button>
             <%= if @agent_token_url do %>
               <div class="agent-invite-actions">
                 <button onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓ copied'; setTimeout(() => this.textContent='Copy agent URL', 2000) })"}>Copy agent URL</button>
               </div>
-            <% end %>
-            <div class="hint">
-              Your agent will see room messages and respond from your working directory. Don't connect from directories with secrets you wouldn't share.
-            </div>
-            <%= if @agent_token_url do %>
               <div class="hint">
                 <%= if @agent_connected? do %>
                   🟢 agent connected
@@ -50,8 +44,16 @@ defmodule HangoutWeb.InfoModal do
                   ⚪ waiting for agent to connect…
                 <% end %>
               </div>
+              <div class="hint">
+                Your agent will see room messages and respond from your working directory. Don't connect from directories with secrets you wouldn't share.
+              </div>
               <div class="agent-invite-actions">
-                <button phx-click="revoke_agent_token">Disconnect agent</button>
+                <button phx-click="revoke_agent_token">🔌 Disconnect agent</button>
+              </div>
+            <% else %>
+              <button phx-click="generate_agent_token">🤖 Invite your agent</button>
+              <div class="hint">
+                Your agent will see room messages and respond from your working directory. Don't connect from directories with secrets you wouldn't share.
               </div>
             <% end %>
           </li>
