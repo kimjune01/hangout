@@ -303,9 +303,11 @@ defmodule HangoutWeb.RoomLive do
       _ -> :called
     end
 
-    # Update the token's mode in ETS if one exists
+    # Update the token's mode in ETS
     if socket.assigns[:agent_token] do
       Hangout.AgentToken.update_mode(socket.assigns.agent_token, mode)
+    else
+      Hangout.AgentToken.update_mode_for_nick(socket.assigns.channel_name, socket.assigns.nick, mode)
     end
 
     {:noreply, assign(socket, agent_mode: mode)}

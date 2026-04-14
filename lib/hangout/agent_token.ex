@@ -30,10 +30,21 @@ defmodule Hangout.AgentToken do
 
   def update_mode(raw_token, mode) when is_binary(raw_token) and mode in @valid_modes do
     token_hash = hash_token(raw_token)
+    do_update_mode(token_hash, mode)
+  end
 
+  def update_mode_for_nick(room_id, nick, mode) when mode in @valid_modes do
+    case find_active_for_nick(room_id, nick) do
+      {:ok, metadata} -> do_update_mode(metadata.token_hash, mode)
+      :none -> {:error, :no_active_token}
+    end
+  end
+
+  defp do_update_mode(token_hash, mode) do
     case :ets.lookup(@table, token_hash) do
       [{^token_hash, metadata}] ->
         :ets.insert(@table, {token_hash, %{metadata | mode: mode}})
+        Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(token_hash), {:mode_changed, mode})
         :ok
 
       [] ->

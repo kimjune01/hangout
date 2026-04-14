@@ -339,6 +339,18 @@ defmodule HangoutWeb.AgentController do
           {:error, _} -> conn
         end
 
+      {:mode_changed, new_mode} ->
+        event_data = %{"mode" => to_string(new_mode), "capabilities" => %{
+          "can_post_unsolicited" => new_mode == :free,
+          "owner_forward_requires_draft" => new_mode in [:off, :draft],
+          "direct_mentions_auto_post" => new_mode in [:called, :free]
+        }, "routing" => %{"respond_to" => mode_routes(new_mode)}}
+
+        case chunk(conn, sse_event("mode", event_data)) do
+          {:ok, conn} -> sse_loop(conn)
+          {:error, _} -> conn
+        end
+
       {:agent_revoked, _token_hash} ->
         _ = chunk(conn, sse_event("system", %{"body" => "Token revoked"}))
         conn
