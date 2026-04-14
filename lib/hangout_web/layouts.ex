@@ -605,6 +605,27 @@ defmodule HangoutWeb.Layouts do
           .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); word-break: break-all; flex: 1; overflow: hidden; text-overflow: ellipsis; user-select: all; }
           .agent-copy-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
           .agent-copy-btn:hover { color: var(--accent); }
+          .agent-toast {
+            position: fixed;
+            bottom: 4rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel-2);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-family: var(--font-mono);
+            z-index: 200;
+            animation: toast-in-out 2s ease-in-out forwards;
+          }
+          @keyframes toast-in-out {
+            0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+          }
 
           @keyframes fade-in {
             from { opacity: 0; transform: translateY(4px); }

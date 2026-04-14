@@ -466,6 +466,16 @@ const MessageForm = {
 
     this.handleEvent("hangout:agent_draft", enterDraft);
 
+    this.handleEvent("hangout:copy_agent_url", ({ url }) => {
+      navigator.clipboard.writeText(url).then(() => {
+        const toast = document.createElement("div");
+        toast.className = "agent-toast";
+        toast.textContent = "agent link copied";
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+      });
+    });
+
     // Clear unread count when tab becomes visible
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {

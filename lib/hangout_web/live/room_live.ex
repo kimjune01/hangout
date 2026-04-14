@@ -288,6 +288,19 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("copy_agent_url", _params, socket) do
+    if socket.assigns.joined? do
+      socket = ensure_agent_token(socket)
+      if socket.assigns.agent_token_url do
+        {:noreply, push_event(socket, "hangout:copy_agent_url", %{url: socket.assigns.agent_token_url})}
+      else
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("generate_agent_token", _params, socket) do
     if socket.assigns.joined? do
       case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
@@ -489,6 +502,9 @@ defmodule HangoutWeb.RoomLive do
               <% end %>
             <% end %>
             <button class="info-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme" phx-hook="ThemeToggle" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)">☀</button>
+            <%= if @joined? do %>
+              <button class="info-btn" phx-click="copy_agent_url" aria-label="Invite agent" title="Invite agent">🤖</button>
+            <% end %>
             <button class="info-btn" phx-click="toggle_info" aria-label="Info" title="Info">💬</button>
           </div>
 
@@ -977,6 +993,26 @@ defmodule HangoutWeb.RoomLive do
     HangoutWeb.Endpoint.url()
     |> URI.merge(path)
     |> to_string()
+  end
+
+  defp ensure_agent_token(socket) do
+    if socket.assigns[:agent_token] do
+      socket
+    else
+      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
+        {:ok, token} ->
+          token_hash = Hangout.AgentToken.hash_token(token)
+
+          assign(socket,
+            agent_connected?: Hangout.AgentToken.attached?(token_hash),
+            agent_token: token,
+            agent_token_url: agent_token_url(socket, token)
+          )
+
+        {:error, :active_token_exists} -> socket
+        {:error, _} -> socket
+      end
+    end
   end
 
   defp agent_draft_topic(channel_name, nick), do: "agent_draft:#{channel_name}:#{nick}"
