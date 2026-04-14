@@ -19,16 +19,16 @@ defmodule HangoutWeb.Layouts do
           :root, [data-theme="dark"] {
             color-scheme: dark;
             --bg: #0a0a0a;
-            --panel: #111111;
-            --panel-2: #1a1a1a;
-            --border: #2a2a2a;
+            --panel: #0d1a0d;
+            --panel-2: #142814;
+            --border: #1e4d1e;
             --text: #d0d0d0;
-            --muted: #808080;
-            --dim: #555555;
-            --accent: #20c20e;
-            --accent-2: #e0b15d;
+            --muted: #6abf5e;
+            --dim: #2d7a2d;
+            --accent: #39ff14;
+            --accent-2: #7ecb20;
             --danger: #ff6b63;
-            --success: #20c20e;
+            --success: #39ff14;
             --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: "Share Tech Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
             --btn-text: var(--bg);
