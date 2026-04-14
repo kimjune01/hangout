@@ -601,11 +601,11 @@ defmodule HangoutWeb.RoomLive do
 
           <%= if @agent_modal_open? do %>
             <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
-            <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
+            <div class="info-modal agent-modal" role="dialog" aria-modal="true" aria-label="Agent settings" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
               <%= if @moderator? do %>
-                <div class="agent-tabs">
-                  <button class={"agent-tab #{if @agent_tab == :agent, do: "active"}"} phx-click="agent_tab" phx-value-tab="agent">My agent</button>
-                  <button class={"agent-tab #{if @agent_tab == :room, do: "active"}"} phx-click="agent_tab" phx-value-tab="room">Room</button>
+                <div class="agent-tabs" role="tablist">
+                  <button class={"agent-tab #{if @agent_tab == :agent, do: "active"}"} role="tab" aria-selected={to_string(@agent_tab == :agent)} phx-click="agent_tab" phx-value-tab="agent">My agent</button>
+                  <button class={"agent-tab #{if @agent_tab == :room, do: "active"}"} role="tab" aria-selected={to_string(@agent_tab == :room)} phx-click="agent_tab" phx-value-tab="room">Room</button>
                 </div>
               <% end %>
 
@@ -615,7 +615,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class="agent-section-label">Policy</span>
                     <span class={"agent-active-mode #{if @room_agent_policy == :unleashed, do: "danger"}"}><%= agent_policy_label(@room_agent_policy) %></span>
                   </div>
-                  <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} />
+                  <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} aria-label="Room agent policy" aria-valuetext={agent_policy_label(@room_agent_policy)} />
                   <div class="hint"><%= agent_policy_desc(@room_agent_policy) %></div>
                 </div>
                 <div class="agent-section">
@@ -623,7 +623,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class="agent-section-label">Rate limit</span>
                     <span class="agent-active-mode">{@room_agent_rate_limit}/min</span>
                   </div>
-                  <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" />
+                  <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" aria-label="Agent rate limit" aria-valuetext={"#{@room_agent_rate_limit} per minute"} />
                 </div>
               <% else %>
                 <div class="agent-section">
@@ -631,7 +631,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class="agent-section-label">Freedom</span>
                     <span class={"agent-active-mode #{if @agent_mode == :unleashed, do: "danger"}"}><%= agent_policy_label(@agent_mode) %></span>
                   </div>
-                  <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
+                  <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} aria-label="Agent freedom level" aria-valuetext={agent_policy_label(@agent_mode)} />
                   <div class="hint"><%= agent_mode_desc(@agent_mode) %></div>
                 </div>
                 <%= if @agent_token_url do %>
