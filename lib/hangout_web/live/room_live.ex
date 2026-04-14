@@ -381,7 +381,10 @@ defmodule HangoutWeb.RoomLive do
   end
 
   def handle_event("forward_to_agent", %{"msg-id" => id}, socket) do
-    with true <- socket.assigns.agent_connected?,
+    effective = Hangout.AgentToken.effective_mode(socket.assigns.agent_mode, socket.assigns.room_agent_policy)
+
+    with true <- effective != :off,
+         true <- socket.assigns.agent_connected?,
          token when is_binary(token) <- socket.assigns.agent_token,
          {:ok, msg} <- find_message(socket.assigns.messages, id) do
       token_hash = Hangout.AgentToken.hash_token(token)
