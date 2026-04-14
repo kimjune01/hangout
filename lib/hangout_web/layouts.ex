@@ -601,8 +601,8 @@ defmodule HangoutWeb.Layouts do
             margin-top: 0.125rem;
           }
           .info-modal .agent-invite-actions { margin-top: 0.25rem; }
-          .agent-url-row { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; }
-          .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); word-break: break-all; flex: 1; overflow: hidden; text-overflow: ellipsis; user-select: all; }
+          .agent-url-row { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; border: 1px solid var(--border); border-radius: 4px; padding: 0.25rem 0.375rem; }
+          .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
           .agent-copy-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
           .agent-copy-btn:hover { color: var(--accent); }
           .agent-modal { min-width: 240px; }
