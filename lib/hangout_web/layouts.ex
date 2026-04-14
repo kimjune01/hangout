@@ -108,7 +108,7 @@ defmodule HangoutWeb.Layouts do
             padding-left: var(--sp-2);
             font-size: 0.9375rem;
           }
-          @keyframes gentle-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+          @keyframes gentle-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.5; } }
           .message.system:only-child { animation: gentle-pulse 3s ease-in-out infinite; }
           .message.action { color: var(--accent); }
           .message.notice { color: var(--accent-2); }
@@ -651,7 +651,7 @@ defmodule HangoutWeb.Layouts do
           .agent-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; animation: status-pulse 2s ease-in-out infinite; }
           .agent-status.connected .agent-status-dot { background: var(--accent); animation: none; }
           .agent-status.connected { color: var(--accent); }
-          @keyframes status-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+          @keyframes status-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
           .agent-modal { min-width: 240px; }
           .agent-tabs { display: flex; gap: 1rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
           .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--muted); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }
