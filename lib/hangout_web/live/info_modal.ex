@@ -34,8 +34,9 @@ defmodule HangoutWeb.InfoModal do
         <%= if @nick do %>
           <li>
             <%= if @agent_token_url do %>
-              <div class="agent-invite-actions">
-                <button onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓ copied'; setTimeout(() => this.textContent='Copy agent URL', 2000) })"}>Copy agent URL</button>
+              <div class="agent-url-row">
+                <code class="agent-url">{@agent_token_url}</code>
+                <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy agent URL" aria-label="Copy">📋</button>
               </div>
               <div class="hint">
                 <%= if @agent_connected? do %>
