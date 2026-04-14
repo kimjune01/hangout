@@ -301,6 +301,7 @@ defmodule HangoutWeb.RoomLive do
       "1" -> :draft
       "2" -> :called
       "3" -> :free
+      "4" -> :unleashed
       _ -> :called
     end
 
@@ -321,6 +322,7 @@ defmodule HangoutWeb.RoomLive do
         "1" -> :draft
         "2" -> :called
         "3" -> :free
+        "4" -> :unleashed
         _ -> :called
       end
 
@@ -579,12 +581,13 @@ defmodule HangoutWeb.RoomLive do
                   <%= agent_policy_desc(@room_agent_policy) %>
                 </div>
                 <div class="agent-slider">
-                  <input type="range" min="0" max="3" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class="freedom-slider" />
+                  <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} />
                   <div class="freedom-labels">
                     <span class={"freedom-label #{if @room_agent_policy == :off, do: "active"}"}>Off</span>
                     <span class={"freedom-label #{if @room_agent_policy == :draft, do: "active"}"}>Draft</span>
                     <span class={"freedom-label #{if @room_agent_policy == :called, do: "active"}"}>Called</span>
                     <span class={"freedom-label #{if @room_agent_policy == :free, do: "active"}"}>Free</span>
+                    <span class={"freedom-label #{if @room_agent_policy == :unleashed, do: "active danger"}"}>🔥</span>
                   </div>
                 </div>
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 0.75rem 0;" />
@@ -594,12 +597,13 @@ defmodule HangoutWeb.RoomLive do
                 <%= agent_mode_desc(@agent_mode) %>
               </div>
               <div class="agent-slider">
-                <input type="range" min="0" max="3" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class="freedom-slider" />
+                <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
                 <div class="freedom-labels">
                   <span class={"freedom-label #{if @agent_mode == :off, do: "active"}"}>Off</span>
                   <span class={"freedom-label #{if @agent_mode == :draft, do: "active"}"}>Draft</span>
                   <span class={"freedom-label #{if @agent_mode == :called, do: "active"}"}>Called</span>
                   <span class={"freedom-label #{if @agent_mode == :free, do: "active"}"}>Free</span>
+                  <span class={"freedom-label #{if @agent_mode == :unleashed, do: "active danger"}"}>🔥</span>
                 </div>
               </div>
               <%= if @agent_token_url do %>
@@ -1110,18 +1114,21 @@ defmodule HangoutWeb.RoomLive do
   defp agent_mode_desc(:draft), do: "Owner forwards only. Every response needs your approval."
   defp agent_mode_desc(:called), do: "Anyone can @mention your agent. It replies directly."
   defp agent_mode_desc(:free), do: "Agent can speak freely. No invocation needed."
+  defp agent_mode_desc(:unleashed), do: "⚠️ Agents can invoke other agents. Conversations may cascade."
   defp agent_mode_desc(_), do: ""
 
   defp agent_policy_desc(:off), do: "No agents can speak in this room."
   defp agent_policy_desc(:draft), do: "Agents can only draft responses for owner approval."
   defp agent_policy_desc(:called), do: "Agents can respond when @mentioned."
   defp agent_policy_desc(:free), do: "Agents can speak freely in this room."
+  defp agent_policy_desc(:unleashed), do: "⚠️ Agents can invoke each other. You are responsible for what happens."
   defp agent_policy_desc(_), do: ""
 
   defp agent_mode_value(:off), do: 0
   defp agent_mode_value(:draft), do: 1
   defp agent_mode_value(:called), do: 2
   defp agent_mode_value(:free), do: 3
+  defp agent_mode_value(:unleashed), do: 4
   defp agent_mode_value(_), do: 2
 
   defp ensure_agent_token(socket) do

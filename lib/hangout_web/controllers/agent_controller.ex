@@ -203,14 +203,14 @@ defmodule HangoutWeb.AgentController do
           "max_messages_per_minute" => 6
         },
         "capabilities" => %{
-          "can_post_unsolicited" => effective == :free,
+          "can_post_unsolicited" => effective in [:free, :unleashed],
           "owner_forward_requires_draft" => effective in [:off, :draft],
-          "direct_mentions_auto_post" => effective in [:called, :free]
+          "direct_mentions_auto_post" => effective in [:called, :free, :unleashed]
         },
         "routing" => %{
           "respond_to" => mode_routes(effective),
           "ignore_own_messages" => true,
-          "agent_to_agent_mentions" => false
+          "agent_to_agent_mentions" => effective == :unleashed
         }
       },
       "endpoints" => %{
@@ -280,16 +280,18 @@ defmodule HangoutWeb.AgentController do
 
   defp build_mode_event(effective) do
     %{"mode" => to_string(effective), "capabilities" => %{
-      "can_post_unsolicited" => effective == :free,
+      "can_post_unsolicited" => effective in [:free, :unleashed],
       "owner_forward_requires_draft" => effective in [:off, :draft],
-      "direct_mentions_auto_post" => effective in [:called, :free]
-    }, "routing" => %{"respond_to" => mode_routes(effective)}}
+      "direct_mentions_auto_post" => effective in [:called, :free, :unleashed]
+    }, "routing" => %{"respond_to" => mode_routes(effective),
+      "agent_to_agent_mentions" => effective == :unleashed}}
   end
 
   defp mode_routes(:off), do: []
   defp mode_routes(:draft), do: ["forward"]
   defp mode_routes(:called), do: ["forward", "mention"]
   defp mode_routes(:free), do: ["forward", "mention", "unsolicited"]
+  defp mode_routes(:unleashed), do: ["forward", "mention", "unsolicited", "agent_mention"]
 
   defp validate_client_msg_id(nil), do: {:ok, nil}
   defp validate_client_msg_id(id) when is_binary(id) and byte_size(id) <= 128, do: {:ok, id}

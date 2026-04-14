@@ -612,6 +612,8 @@ defmodule HangoutWeb.Layouts do
           .freedom-labels { display: flex; justify-content: space-between; margin-top: 0.25rem; }
           .freedom-label { font-size: 0.6875rem; font-family: var(--font-mono); color: var(--dim); transition: color 0.15s; }
           .freedom-label.active { color: var(--accent); font-weight: 600; }
+          .freedom-label.danger { color: var(--danger); }
+          .freedom-slider.unleashed { accent-color: var(--danger); }
           .agent-invite-btn { background: var(--accent); color: var(--btn-text); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600; width: 100%; }
           .agent-invite-btn:hover { opacity: 0.9; }
           .agent-disconnect-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; }

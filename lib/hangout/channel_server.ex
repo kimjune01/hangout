@@ -415,7 +415,7 @@ defmodule Hangout.ChannelServer do
     {:reply, :ok, state}
   end
 
-  @agent_policies ~w(off draft called free)a
+  @agent_policies ~w(off draft called free unleashed)a
 
   def handle_call({:set_agent_policy, actor, policy, token}, _from, state)
       when policy in @agent_policies do
@@ -771,7 +771,7 @@ defmodule Hangout.ChannelServer do
     Phoenix.PubSub.broadcast(Hangout.PubSub, topic_name(state.name), {:hangout_event, event})
   end
 
-  defp route_mentions(_state, %Message{agent: true}), do: :ok
+  defp route_mentions(%{agent_policy: policy}, %Message{agent: true}) when policy != :unleashed, do: :ok
 
   defp route_mentions(state, %Message{kind: kind} = msg) when kind in [:privmsg, :action] do
     body = strip_backtick_spans(msg.body)
@@ -790,7 +790,7 @@ defmodule Hangout.ChannelServer do
         {:mention,
          %{
            "id" => msg.id,
-           "from" => %{"nick" => msg.from, "agent" => false},
+           "from" => %{"nick" => msg.from, "agent" => msg.agent},
            "body" => msg.body,
            "at" => DateTime.to_iso8601(msg.at)
          }}
