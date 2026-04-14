@@ -609,10 +609,11 @@ defmodule HangoutWeb.RoomLive do
                 </div>
               <% end %>
 
+              <div class="agent-panel">
               <%= if @agent_tab == :room and @moderator? do %>
                 <div class="agent-section">
                   <div class="agent-section-header">
-                    <span class="agent-section-label">Policy</span>
+                    <span class="agent-section-label">Freedom</span>
                     <span class={"agent-active-mode #{if @room_agent_policy == :unleashed, do: "danger"}"}><%= agent_policy_label(@room_agent_policy) %></span>
                   </div>
                   <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} aria-label="Room agent policy" aria-valuetext={agent_policy_label(@room_agent_policy)} />
@@ -624,6 +625,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class="agent-active-mode">{@room_agent_rate_limit}/min</span>
                   </div>
                   <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" aria-label="Agent rate limit" aria-valuetext={"#{@room_agent_rate_limit} per minute"} />
+                  <div class="hint">Messages per minute, per agent.</div>
                 </div>
               <% else %>
                 <div class="agent-section">
@@ -646,6 +648,7 @@ defmodule HangoutWeb.RoomLive do
                   <button class="agent-invite-btn" phx-click="generate_agent_token">Generate invite link</button>
                 <% end %>
               <% end %>
+              </div>
             </div>
           <% end %>
         </header>
@@ -1138,9 +1141,9 @@ defmodule HangoutWeb.RoomLive do
   end
 
   defp agent_policy_label(:off), do: "Off"
-  defp agent_policy_label(:draft), do: "Draft"
-  defp agent_policy_label(:called), do: "Called"
-  defp agent_policy_label(:free), do: "Free"
+  defp agent_policy_label(:draft), do: "Drafts only"
+  defp agent_policy_label(:called), do: "Mentions only"
+  defp agent_policy_label(:free), do: "Unrestricted"
   defp agent_policy_label(:unleashed), do: "🔥 Unleashed"
   defp agent_policy_label(_), do: ""
 

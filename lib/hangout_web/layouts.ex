@@ -607,9 +607,10 @@ defmodule HangoutWeb.Layouts do
           .agent-copy-btn:hover { color: var(--accent); }
           .agent-modal { min-width: 240px; }
           .agent-tabs { display: flex; gap: 1rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
-          .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--dim); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }
+          .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--muted); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }
           .agent-tab:hover { color: var(--text); }
           .agent-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+          .agent-panel { min-height: 15.5rem; }
           .agent-section { margin-bottom: 0.75rem; min-height: 7rem; }
           .agent-section:last-of-type { margin-bottom: 0.5rem; }
           .agent-section-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.125rem; }
@@ -619,8 +620,8 @@ defmodule HangoutWeb.Layouts do
           .freedom-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 0.125rem 0; }
           .freedom-slider.unleashed { accent-color: var(--danger); }
           .freedom-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-          .agent-invite-btn { background: var(--accent); color: var(--btn-text); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600; width: 100%; min-height: 44px; }
-          .agent-invite-btn:hover { opacity: 0.9; }
+          .agent-invite-btn { background: none; color: var(--accent); border: 1px solid var(--accent); padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.8125rem; font-family: var(--font-mono); width: 100%; min-height: 44px; }
+          .agent-invite-btn:hover { background: var(--accent); color: var(--btn-text); }
           .agent-disconnect-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; }
           .agent-disconnect-btn:hover { background: var(--danger); color: var(--btn-text); }
           .agent-toast {
