@@ -781,7 +781,7 @@ defmodule Hangout.ChannelServer do
 
   defp mentions_owner?(body, owner_nick) do
     escaped = Regex.escape(owner_nick)
-    Regex.match?(~r/(^|[^\p{L}\p{N}_])@#{escaped}🤖(?=$|[^\p{L}\p{N}_])/iu, body)
+    Regex.match?(~r/(^|[^\p{L}\p{N}_])@#{escaped}(🤖|-bot)(?=$|[^\p{L}\p{N}_])/iu, body)
   end
 
   # Strip content inside backtick code spans (any number of backticks) and fenced code blocks

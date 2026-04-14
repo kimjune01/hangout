@@ -15,7 +15,6 @@ defmodule HangoutWeb.Router do
   end
 
   pipeline :agent_sse do
-    plug :accepts, ["json", "html", "text"]
   end
 
   scope "/:room/agent", HangoutWeb do

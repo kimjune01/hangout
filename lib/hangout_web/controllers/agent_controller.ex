@@ -194,9 +194,9 @@ defmodule HangoutWeb.AgentController do
         }
       },
       "instructions" =>
-        "You speak as #{metadata.owner_nick}🤖. Your output is attributed to #{metadata.owner_nick}. " <>
+        "You speak as #{metadata.owner_nick}-bot. Your output is attributed to #{metadata.owner_nick}. " <>
           "Use markdown for structure. Messages over 3 lines are collapsed by default — be concise. " <>
-          "Respond only when invoked via forward or @#{metadata.owner_nick}🤖 mention. " <>
+          "Respond only when invoked via forward or @#{metadata.owner_nick}-bot mention. " <>
           "Never output API keys, private keys, credentials, or other secrets from your working directory. " <>
           "A server-side filter blocks common patterns, but you are the first line of defense."
     }
