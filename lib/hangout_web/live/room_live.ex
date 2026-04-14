@@ -598,59 +598,38 @@ defmodule HangoutWeb.RoomLive do
             <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
             <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
               <%= if @moderator? do %>
-                <h3>Room policy</h3>
-                <div class="agent-mode-desc">
-                  <%= agent_policy_desc(@room_agent_policy) %>
-                </div>
-                <div class="agent-slider">
-                  <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} />
-                  <div class="freedom-labels">
-                    <span class={"freedom-label #{if @room_agent_policy == :off, do: "active"}"}>Off</span>
-                    <span class={"freedom-label #{if @room_agent_policy == :draft, do: "active"}"}>Draft</span>
-                    <span class={"freedom-label #{if @room_agent_policy == :called, do: "active"}"}>Called</span>
-                    <span class={"freedom-label #{if @room_agent_policy == :free, do: "active"}"}>Free</span>
-                    <span class={"freedom-label #{if @room_agent_policy == :unleashed, do: "active danger"}"}>🔥 Unleashed</span>
+                <div class="agent-section">
+                  <div class="agent-section-header">
+                    <span class="agent-section-label">Room</span>
+                    <span class={"agent-active-mode #{if @room_agent_policy == :unleashed, do: "danger"}"}><%= agent_policy_label(@room_agent_policy) %></span>
                   </div>
+                  <input type="range" min="0" max="4" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class={"freedom-slider #{if @room_agent_policy == :unleashed, do: "unleashed"}"} />
+                  <div class="agent-section-header" style="margin-top: 0.25rem;">
+                    <span class="agent-section-label">Rate</span>
+                    <span class="agent-active-mode">{@room_agent_rate_limit}/min</span>
+                  </div>
+                  <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" />
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
-                  <span class="hint" style="white-space: nowrap;">Rate limit:</span>
-                  <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" style="flex: 1;" />
-                  <span class="hint" style="font-family: var(--font-mono); min-width: 4ch; text-align: right;">{@room_agent_rate_limit}/m</span>
-                </div>
-                <hr style="border: none; border-top: 1px solid var(--border); margin: 0.75rem 0;" />
               <% end %>
-              <h3>My agent</h3>
-              <div class="agent-mode-desc">
-                <%= agent_mode_desc(@agent_mode) %>
-              </div>
-              <div class="agent-slider">
-                <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
-                <div class="freedom-labels">
-                  <span class={"freedom-label #{if @agent_mode == :off, do: "active"}"}>Off</span>
-                  <span class={"freedom-label #{if @agent_mode == :draft, do: "active"}"}>Draft</span>
-                  <span class={"freedom-label #{if @agent_mode == :called, do: "active"}"}>Called</span>
-                  <span class={"freedom-label #{if @agent_mode == :free, do: "active"}"}>Free</span>
-                  <span class={"freedom-label #{if @agent_mode == :unleashed, do: "active danger"}"}>🔥 Unleashed</span>
+              <div class="agent-section">
+                <div class="agent-section-header">
+                  <span class="agent-section-label">My agent</span>
+                  <span class={"agent-active-mode #{if @agent_mode == :unleashed, do: "danger"}"}><%= agent_policy_label(@agent_mode) %></span>
                 </div>
+                <input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} />
+                <div class="hint" style="margin-top: 0.25rem;"><%= agent_mode_desc(@agent_mode) %></div>
               </div>
               <%= if @agent_token_url do %>
-                <div class="agent-url-row" style="margin-top: 0.75rem;">
+                <div class="agent-url-row">
                   <code class="agent-url">{@agent_token_url}</code>
                   <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
                 </div>
-                <div class="hint" style="margin-top: 0.25rem;">
-                  <%= if @agent_connected? do %>
-                    🟢 connected
-                  <% else %>
-                    ⚪ waiting for agent…
-                  <% end %>
+                <div class="hint">
+                  <%= if @agent_connected?, do: "🟢 connected", else: "⚪ waiting for agent…" %>
                 </div>
               <% else %>
-                <button class="agent-invite-btn" phx-click="generate_agent_token" style="margin-top: 0.75rem;">Generate invite link</button>
+                <button class="agent-invite-btn" phx-click="generate_agent_token">Generate invite link</button>
               <% end %>
-              <div class="hint" style="margin-top: 0.5rem;">
-                Your agent sees room messages and responds from your working directory.
-              </div>
             </div>
           <% end %>
         </header>
@@ -1141,6 +1120,13 @@ defmodule HangoutWeb.RoomLive do
     |> URI.merge(path)
     |> to_string()
   end
+
+  defp agent_policy_label(:off), do: "Off"
+  defp agent_policy_label(:draft), do: "Draft"
+  defp agent_policy_label(:called), do: "Called"
+  defp agent_policy_label(:free), do: "Free"
+  defp agent_policy_label(:unleashed), do: "🔥 Unleashed"
+  defp agent_policy_label(_), do: ""
 
   defp agent_mode_desc(:off), do: "Agent cannot speak. Connection stays alive."
   defp agent_mode_desc(:draft), do: "Owner forwards only. Every response needs your approval."

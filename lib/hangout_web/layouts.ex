@@ -605,14 +605,14 @@ defmodule HangoutWeb.Layouts do
           .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); word-break: break-all; flex: 1; overflow: hidden; text-overflow: ellipsis; user-select: all; }
           .agent-copy-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
           .agent-copy-btn:hover { color: var(--accent); }
-          .agent-modal { min-width: 260px; }
-          .agent-mode-desc { font-size: 0.8125rem; color: var(--text); text-align: center; min-height: 2.5em; display: flex; align-items: center; justify-content: center; }
-          .agent-slider { margin-top: 0.5rem; }
-          .freedom-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
-          .freedom-labels { display: flex; justify-content: space-between; margin-top: 0.25rem; }
-          .freedom-label { font-size: 0.6875rem; font-family: var(--font-mono); color: var(--dim); transition: color 0.15s; }
-          .freedom-label.active { color: var(--accent); font-weight: 600; }
-          .freedom-label.danger { color: var(--danger); }
+          .agent-modal { min-width: 240px; }
+          .agent-section { margin-bottom: 0.75rem; }
+          .agent-section:last-of-type { margin-bottom: 0.5rem; }
+          .agent-section-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.125rem; }
+          .agent-section-label { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
+          .agent-active-mode { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--accent); font-weight: 600; }
+          .agent-active-mode.danger { color: var(--danger); }
+          .freedom-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 0.125rem 0; }
           .freedom-slider.unleashed { accent-color: var(--danger); }
           .agent-invite-btn { background: var(--accent); color: var(--btn-text); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600; width: 100%; }
           .agent-invite-btn:hover { opacity: 0.9; }
