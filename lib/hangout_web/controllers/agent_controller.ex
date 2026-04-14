@@ -52,8 +52,8 @@ defmodule HangoutWeb.AgentController do
   def messages(conn, %{"room" => room, "token" => token}) do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
-        if metadata.mode == :leashed do
-          conn |> put_status(403) |> json(%{"ok" => false, "error" => "leashed_agent", "hint" => "This agent can only respond via /drafts. The owner approves before sending."})
+        if metadata.mode in [:off, :draft] do
+          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_restricted", "hint" => "This agent's mode is #{metadata.mode}. Use /drafts for owner-approved responses, or ask the owner to increase permissions."})
         else
         case request_body(conn) do
           {:ok, params} ->
@@ -123,6 +123,9 @@ defmodule HangoutWeb.AgentController do
   def drafts(conn, %{"room" => room, "token" => token}) do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
+        if metadata.mode == :off do
+          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_off", "hint" => "Agent is turned off. Ask the owner to slide the permission up."})
+        else
         case request_body(conn) do
           {:ok, params} ->
             raw_body = params["body"]
@@ -166,6 +169,7 @@ defmodule HangoutWeb.AgentController do
           {:error, _} ->
             conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
         end
+        end
 
       {:error, reason} ->
         conn
@@ -191,9 +195,9 @@ defmodule HangoutWeb.AgentController do
           "max_messages_per_minute" => 6
         },
         "capabilities" => %{
-          "can_post_unsolicited" => metadata.mode == :autonomous,
-          "owner_forward_requires_draft" => metadata.mode == :leashed,
-          "direct_mentions_auto_post" => metadata.mode in [:addressable, :autonomous]
+          "can_post_unsolicited" => metadata.mode == :free,
+          "owner_forward_requires_draft" => metadata.mode in [:off, :draft],
+          "direct_mentions_auto_post" => metadata.mode in [:called, :free]
         },
         "routing" => %{
           "respond_to" => mode_routes(metadata.mode),
@@ -255,9 +259,10 @@ defmodule HangoutWeb.AgentController do
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
 
-  defp mode_routes(:leashed), do: ["forward"]
-  defp mode_routes(:addressable), do: ["forward", "mention"]
-  defp mode_routes(:autonomous), do: ["forward", "mention", "unsolicited"]
+  defp mode_routes(:off), do: []
+  defp mode_routes(:draft), do: ["forward"]
+  defp mode_routes(:called), do: ["forward", "mention"]
+  defp mode_routes(:free), do: ["forward", "mention", "unsolicited"]
 
   defp validate_client_msg_id(nil), do: {:ok, nil}
   defp validate_client_msg_id(id) when is_binary(id) and byte_size(id) <= 128, do: {:ok, id}

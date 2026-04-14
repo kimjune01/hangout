@@ -21,11 +21,24 @@ defmodule Hangout.AgentToken do
 
   def table, do: @table
 
-  @valid_modes ~w(leashed addressable autonomous)a
+  @valid_modes ~w(off draft called free)a
 
-  def create(room_id, owner_nick, keypair_fingerprint, mode \\ :addressable)
+  def create(room_id, owner_nick, keypair_fingerprint, mode \\ :called)
       when mode in @valid_modes do
     GenServer.call(__MODULE__, {:create, room_id, owner_nick, keypair_fingerprint, mode})
+  end
+
+  def update_mode(raw_token, mode) when is_binary(raw_token) and mode in @valid_modes do
+    token_hash = hash_token(raw_token)
+
+    case :ets.lookup(@table, token_hash) do
+      [{^token_hash, metadata}] ->
+        :ets.insert(@table, {token_hash, %{metadata | mode: mode}})
+        :ok
+
+      [] ->
+        {:error, :invalid_token}
+    end
   end
 
   def validate(room_slug, raw_token) when is_binary(raw_token) do

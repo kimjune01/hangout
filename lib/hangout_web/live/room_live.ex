@@ -60,7 +60,7 @@ defmodule HangoutWeb.RoomLive do
         agent_connected?: false,
         agent_token: nil,
         agent_token_url: nil,
-        agent_mode: :addressable,
+        agent_mode: :called,
         agent_modal_open?: false
       )
 
@@ -296,20 +296,17 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("set_agent_mode", %{"mode" => mode_str}, socket) do
     mode = case mode_str do
-      "0" -> :leashed
-      "1" -> :addressable
-      "2" -> :autonomous
-      _ -> :addressable
+      "0" -> :off
+      "1" -> :draft
+      "2" -> :called
+      "3" -> :free
+      _ -> :called
     end
 
-    # If a token already exists with a different mode, revoke and clear it
-    socket =
-      if socket.assigns[:agent_token] and socket.assigns[:agent_mode] != mode do
-        revoke_current_agent(socket)
-        |> assign(agent_token: nil, agent_token_url: nil, agent_connected?: false)
-      else
-        socket
-      end
+    # Update the token's mode in ETS if one exists
+    if socket.assigns[:agent_token] do
+      Hangout.AgentToken.update_mode(socket.assigns.agent_token, mode)
+    end
 
     {:noreply, assign(socket, agent_mode: mode)}
   end
@@ -546,24 +543,27 @@ defmodule HangoutWeb.RoomLive do
           <%= if @agent_modal_open? do %>
             <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
             <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
-              <h3>Agent freedom</h3>
-              <div class="agent-slider">
-                <input type="range" min="0" max="2" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class="freedom-slider" />
-                <div class="freedom-labels">
-                  <span class={"freedom-label #{if @agent_mode == :leashed, do: "active"}"}>🔒 Leashed</span>
-                  <span class={"freedom-label #{if @agent_mode == :addressable, do: "active"}"}>💬 Addressable</span>
-                  <span class={"freedom-label #{if @agent_mode == :autonomous, do: "active"}"}>⚡ Autonomous</span>
-                </div>
-              </div>
-              <div class="hint" style="margin-top: 0.5rem;">
+              <h3>Agent</h3>
+              <div class="agent-mode-desc">
                 <%= case @agent_mode do %>
-                  <% :leashed -> %>
+                  <% :off -> %>
+                    Agent cannot speak. Connection stays alive.
+                  <% :draft -> %>
                     Owner forwards only. Every response needs your approval.
-                  <% :addressable -> %>
+                  <% :called -> %>
                     Anyone can @mention your agent. It replies directly.
-                  <% :autonomous -> %>
+                  <% :free -> %>
                     Agent can speak freely. No invocation needed.
                 <% end %>
+              </div>
+              <div class="agent-slider">
+                <input type="range" min="0" max="3" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class="freedom-slider" />
+                <div class="freedom-labels">
+                  <span class={"freedom-label #{if @agent_mode == :off, do: "active"}"}>Off</span>
+                  <span class={"freedom-label #{if @agent_mode == :draft, do: "active"}"}>Draft</span>
+                  <span class={"freedom-label #{if @agent_mode == :called, do: "active"}"}>Called</span>
+                  <span class={"freedom-label #{if @agent_mode == :free, do: "active"}"}>Free</span>
+                </div>
               </div>
               <%= if @agent_token_url do %>
                 <div class="agent-url-row" style="margin-top: 0.75rem;">
@@ -577,7 +577,6 @@ defmodule HangoutWeb.RoomLive do
                     ⚪ waiting for agent…
                   <% end %>
                 </div>
-                <button class="agent-disconnect-btn" phx-click="revoke_agent_token" style="margin-top: 0.5rem;">🔌 Disconnect</button>
               <% else %>
                 <button class="agent-invite-btn" phx-click="generate_agent_token" style="margin-top: 0.75rem;">Generate invite link</button>
               <% end %>
@@ -1065,10 +1064,11 @@ defmodule HangoutWeb.RoomLive do
     |> to_string()
   end
 
-  defp agent_mode_value(:leashed), do: 0
-  defp agent_mode_value(:addressable), do: 1
-  defp agent_mode_value(:autonomous), do: 2
-  defp agent_mode_value(_), do: 1
+  defp agent_mode_value(:off), do: 0
+  defp agent_mode_value(:draft), do: 1
+  defp agent_mode_value(:called), do: 2
+  defp agent_mode_value(:free), do: 3
+  defp agent_mode_value(_), do: 2
 
   defp ensure_agent_token(socket) do
     if socket.assigns[:agent_token] do
