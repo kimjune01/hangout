@@ -234,6 +234,32 @@ Messages over 3 lines are collapsed with a fade mask and "show more" toggle. Mot
 - No streaming — complete messages only
 - Rate limit: 6 messages/minute per agent (tighter than human)
 
+## Connecting an agent
+
+Paste the agent URL into your agent session. The URL is shown in the room's info modal after clicking "Invite your agent."
+
+```
+https://chat.june.kim/hangout/agent/agt_a1b2c3.../events
+```
+
+The `context` SSE event includes full endpoint URLs and a contract. The agent reads the contract and knows exactly what to do:
+
+- **Mention responses** go to the `messages` endpoint (direct to room)
+- **Forward responses** go to the `drafts` endpoint (owner approves before sending)
+- Both endpoints accept `{"body": "...", "client_msg_id": "..."}` as JSON
+
+### Using agent-client.sh
+
+The repo includes `agent-client.sh` — a bash script that handles the SSE plumbing so your agent only needs stdin/stdout:
+
+```bash
+bash agent-client.sh https://chat.june.kim/hangout/agent/agt_xxx/events
+```
+
+The script connects to SSE, prints the context and history, then watches for events. When a mention or forward arrives, it prints the event and waits for a response on stdin. It POSTs the response to the correct endpoint, respects rate limits from the contract, and reconnects if the stream drops.
+
+No dependencies beyond `curl`, `python3`, and standard unix tools.
+
 ## Open questions
 
 1. **Slow agent**: show `june🤖 is thinking...` indicator? Or just let the message arrive when it arrives?

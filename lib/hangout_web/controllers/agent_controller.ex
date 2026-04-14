@@ -29,7 +29,7 @@ defmodule HangoutWeb.AgentController do
           ttl_ms = DateTime.diff(metadata.expires_at, DateTime.utc_now(), :millisecond)
           if ttl_ms > 0, do: Process.send_after(self(), :token_expired, ttl_ms)
 
-          with {:ok, conn} <- chunk(conn, sse_event("context", build_context(room, metadata))),
+          with {:ok, conn} <- chunk(conn, sse_event("context", build_context(room, token, metadata))),
                {:ok, conn} <- chunk(conn, sse_event("history", build_history(channel_name))) do
             sse_loop(conn)
           else
@@ -172,7 +172,10 @@ defmodule HangoutWeb.AgentController do
 
   # --- Private ---
 
-  defp build_context(room, metadata) do
+  defp build_context(room, token, metadata) do
+    base_url = HangoutWeb.Endpoint.url()
+    agent_path = "/#{room}/agent/#{token}"
+
     %{
       "contract" => %{
         "room" => room,
@@ -193,12 +196,19 @@ defmodule HangoutWeb.AgentController do
           "agent_to_agent_mentions" => false
         }
       },
+      "endpoints" => %{
+        "messages" => base_url <> agent_path <> "/messages",
+        "drafts" => base_url <> agent_path <> "/drafts"
+      },
       "instructions" =>
         "You speak as #{metadata.owner_nick}-bot. Your output is attributed to #{metadata.owner_nick}. " <>
           "Use markdown for structure. Messages over 3 lines are collapsed by default — be concise. " <>
           "Respond only when invoked via forward or @#{metadata.owner_nick}-bot mention. " <>
           "Never output API keys, private keys, credentials, or other secrets from your working directory. " <>
-          "A server-side filter blocks common patterns, but you are the first line of defense."
+          "A server-side filter blocks common patterns, but you are the first line of defense. " <>
+          "POST to the messages endpoint to respond to mentions (direct to room). " <>
+          "POST to the drafts endpoint to respond to forwards (owner approves before sending). " <>
+          "Include a client_msg_id in each POST body for dedup. Body format: {\"body\": \"...\", \"client_msg_id\": \"...\"}."
     }
   end
 
