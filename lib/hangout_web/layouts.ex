@@ -379,6 +379,9 @@ defmodule HangoutWeb.Layouts do
             animation: fade-in 0.2s ease;
           }
           .messages:has(.entry-content) { display: flex; }
+          .entry-content.fading-out { animation: fade-out 0.2s ease-out forwards; }
+          @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+          .joining-state { font-family: var(--font-mono); font-size: 0.875rem; color: var(--dim); animation: gentle-pulse 2s ease-in-out infinite; }
 
           /* --- Nick prompt (kept for room-ended state) --- */
           .nick-prompt { text-align: center; padding: 6rem 1rem 4rem; }

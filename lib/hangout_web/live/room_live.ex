@@ -57,6 +57,7 @@ defmodule HangoutWeb.RoomLive do
         page_title: "##{slug}",
         send_error: nil,
         info_open?: false,
+        joining?: false,
         agent_connected?: false,
         agent_token: nil,
         agent_token_url: nil,
@@ -99,13 +100,8 @@ defmodule HangoutWeb.RoomLive do
         {:noreply, put_flash(socket, :error, "Invalid nick. Use 1-16 chars starting with a letter.")}
 
       true ->
-        case join_channel(socket, nick) do
-          {:ok, socket} ->
-            socket = append_you_joined(socket)
-            {:noreply, push_event(socket, "hangout:nick_set", %{nick: socket.assigns.nick})}
-          {:error, reason, socket} ->
-            {:noreply, put_flash(socket, :error, human_error(reason))}
-        end
+        send(self(), {:complete_join, nick})
+        {:noreply, assign(socket, joining?: true)}
     end
   end
 
@@ -505,6 +501,16 @@ defmodule HangoutWeb.RoomLive do
 
   # --- PubSub + direct messages ---
 
+  def handle_info({:complete_join, nick}, socket) do
+    case join_channel(socket, nick) do
+      {:ok, socket} ->
+        socket = append_you_joined(socket)
+        {:noreply, push_event(assign(socket, joining?: false), "hangout:nick_set", %{nick: socket.assigns.nick})}
+      {:error, reason, socket} ->
+        {:noreply, assign(socket, joining?: false) |> put_flash(:error, human_error(reason))}
+    end
+  end
+
   @impl true
   def handle_info({:agent_draft, %{body: body}}, socket) do
     {:noreply, push_event(socket, "hangout:agent_draft", %{body: body, nick: socket.assigns.nick})}
@@ -714,7 +720,10 @@ defmodule HangoutWeb.RoomLive do
                   </div>
                 <% end %>
               <% else %>
-                <div class="entry-content">
+                <div class={"entry-content #{if @joining?, do: "fading-out"}"}>
+                  <%= if @joining? do %>
+                    <div class="joining-state">joining…</div>
+                  <% else %>
                   <div class="guest-list">
                     <%= if @room_members != [] do %>
                       <div class="guest-label">Inside now</div>
@@ -750,6 +759,7 @@ defmodule HangoutWeb.RoomLive do
                       <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
                     <% end %>
                   </div>
+                  <% end %>
                 </div>
               <% end %>
             </div>
