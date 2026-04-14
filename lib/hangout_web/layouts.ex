@@ -11,6 +11,9 @@ defmodule HangoutWeb.Layouts do
         <meta name="csrf-token" content={Phoenix.Controller.get_csrf_token()} />
         <title>Hangout</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫧</text></svg>" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
         <script defer phx-track-static src="/assets/app.js"></script>
         <style>
           :root, [data-theme="dark"] {
@@ -22,12 +25,12 @@ defmodule HangoutWeb.Layouts do
             --text: #e3ded7;
             --muted: #9c948a;
             --dim: #6e7681;
-            --accent: #7cc7b2;
+            --accent: #20c20e;
             --accent-2: #e0b15d;
             --danger: #ff6b63;
-            --success: #7cc7b2;
+            --success: #20c20e;
             --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            --font-mono: "Share Tech Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
             --btn-text: var(--bg);
             --sp-1: 0.25rem;
             --sp-2: 0.5rem;
@@ -46,10 +49,10 @@ defmodule HangoutWeb.Layouts do
             --text: #1a1918;
             --muted: #5a554f;
             --dim: #6e6860;
-            --accent: #1f7a67;
+            --accent: #0a8a08;
             --accent-2: #8a6508;
             --danger: #c62828;
-            --success: #1f7a67;
+            --success: #0a8a08;
             --btn-text: #ffffff;
           }
 
