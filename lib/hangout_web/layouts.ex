@@ -18,13 +18,13 @@ defmodule HangoutWeb.Layouts do
         <style>
           :root, [data-theme="dark"] {
             color-scheme: dark;
-            --bg: #11100f;
-            --panel: #191816;
-            --panel-2: #211f1c;
-            --border: #3a3630;
-            --text: #e3ded7;
-            --muted: #9c948a;
-            --dim: #6e7681;
+            --bg: #0a0a0a;
+            --panel: #111111;
+            --panel-2: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #d0d0d0;
+            --muted: #808080;
+            --dim: #555555;
             --accent: #20c20e;
             --accent-2: #e0b15d;
             --danger: #ff6b63;
