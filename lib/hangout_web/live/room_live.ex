@@ -62,7 +62,8 @@ defmodule HangoutWeb.RoomLive do
         agent_token_url: nil,
         agent_mode: :called,
         agent_modal_open?: false,
-        room_agent_policy: :called
+        room_agent_policy: :called,
+        room_agent_rate_limit: 6
       )
 
     {:ok, socket}
@@ -340,6 +341,27 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
+  def handle_event("set_agent_rate_limit", %{"rate" => rate_str}, socket) do
+    if socket.assigns.moderator? do
+      case Integer.parse(rate_str) do
+        {rate, ""} when rate >= 1 and rate <= 60 ->
+          case ChannelServer.set_agent_rate_limit(
+            socket.assigns.channel_name,
+            socket.assigns.nick,
+            rate,
+            socket.assigns.mod_token
+          ) do
+            :ok -> {:noreply, assign(socket, room_agent_rate_limit: rate)}
+            {:error, _} -> {:noreply, socket}
+          end
+
+        _ -> {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("copy_agent_url", _params, socket) do
     if socket.assigns.joined? do
       socket = ensure_agent_token(socket)
@@ -589,6 +611,11 @@ defmodule HangoutWeb.RoomLive do
                     <span class={"freedom-label #{if @room_agent_policy == :free, do: "active"}"}>Free</span>
                     <span class={"freedom-label #{if @room_agent_policy == :unleashed, do: "active danger"}"}>🔥 Unleashed</span>
                   </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                  <span class="hint" style="white-space: nowrap;">Rate limit:</span>
+                  <input type="range" min="1" max="60" value={@room_agent_rate_limit} phx-change="set_agent_rate_limit" name="rate" class="freedom-slider" style="flex: 1;" />
+                  <span class="hint" style="font-family: var(--font-mono); min-width: 4ch; text-align: right;">{@room_agent_rate_limit}/m</span>
                 </div>
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 0.75rem 0;" />
               <% end %>
@@ -842,7 +869,8 @@ defmodule HangoutWeb.RoomLive do
                 moderator?: moderator?,
                 mod_token: mod_token || token,
                 mod_capability_url: mod_url,
-                room_agent_policy: snapshot[:agent_policy] || :called
+                room_agent_policy: snapshot[:agent_policy] || :called,
+                room_agent_rate_limit: snapshot[:agent_rate_limit] || 6
               )
 
             {:ok, socket}
@@ -1041,6 +1069,10 @@ defmodule HangoutWeb.RoomLive do
 
   defp apply_event(socket, {:agent_policy_changed, _channel, policy}) do
     assign(socket, room_agent_policy: policy)
+  end
+
+  defp apply_event(socket, {:agent_rate_limit_changed, _channel, rate}) do
+    assign(socket, room_agent_rate_limit: rate)
   end
 
   defp apply_event(socket, _event), do: socket

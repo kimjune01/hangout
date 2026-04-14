@@ -28,7 +28,8 @@ defmodule Hangout.ChannelServer do
             next_message_id: 1,
             ttl_ref: nil,
             voice_participants: MapSet.new(),
-            agent_policy: :called
+            agent_policy: :called,
+            agent_rate_limit: 6
 
   # --- Client API ---
 
@@ -70,6 +71,7 @@ defmodule Hangout.ChannelServer do
   def whois(name, nick), do: call(name, {:whois, nick})
   def mark_bot(name, nick), do: call(name, {:mark_bot, nick})
   def set_agent_policy(name, actor, policy, token \\ nil), do: call(name, {:set_agent_policy, actor, policy, token})
+  def set_agent_rate_limit(name, actor, rate, token \\ nil), do: call(name, {:set_agent_rate_limit, actor, rate, token})
   def agent_policy(name), do: call(name, :agent_policy)
   def voice_join(name, nick), do: call(name, {:voice_join, nick})
   def voice_leave(name, nick), do: call(name, {:voice_leave, nick})
@@ -430,7 +432,18 @@ defmodule Hangout.ChannelServer do
   end
 
   def handle_call(:agent_policy, _from, state) do
-    {:reply, {:ok, state.agent_policy}, state}
+    {:reply, {:ok, state.agent_policy, state.agent_rate_limit}, state}
+  end
+
+  def handle_call({:set_agent_rate_limit, actor, rate, token}, _from, state)
+      when is_integer(rate) and rate >= 1 and rate <= 60 do
+    if authorized?(state, actor, token) do
+      state = %{state | agent_rate_limit: rate}
+      broadcast(state, {:agent_rate_limit_changed, state.name, rate})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :chanop_needed}, state}
+    end
   end
 
   def handle_call({:validate_mod, token}, _from, state) do
@@ -686,7 +699,8 @@ defmodule Hangout.ChannelServer do
       human_count: state.human_count,
       bot_count: state.bot_count,
       voice_participants: MapSet.to_list(state.voice_participants),
-      agent_policy: state.agent_policy
+      agent_policy: state.agent_policy,
+      agent_rate_limit: state.agent_rate_limit
     }
   end
 

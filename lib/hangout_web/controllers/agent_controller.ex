@@ -65,7 +65,7 @@ defmodule HangoutWeb.AgentController do
             with true <- is_binary(raw_body) and String.trim(raw_body) != "",
                  {:ok, client_msg_id} <- validate_client_msg_id(raw_msg_id),
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
-                 :ok <- AgentToken.check_rate_limit(token),
+                 :ok <- AgentToken.check_rate_limit(token, room_agent_rate_limit("#" <> room)),
                  {:ok, msg} <- ChannelServer.agent_message("#" <> room, metadata.owner_nick, raw_body) do
               conn
               |> put_status(200)
@@ -142,7 +142,7 @@ defmodule HangoutWeb.AgentController do
                  {:ok, _} <- Hangout.SecretFilter.check(raw_body),
                  :ok <- check_room_mute("#" <> room),
                  :ok <- AgentToken.check_dedup(token, client_msg_id),
-                 :ok <- AgentToken.check_rate_limit(token) do
+                 :ok <- AgentToken.check_rate_limit(token, room_agent_rate_limit("#" <> room)) do
               room_id = "#" <> room
 
               Phoenix.PubSub.broadcast(
@@ -200,7 +200,7 @@ defmodule HangoutWeb.AgentController do
         "room_policy" => to_string(room_agent_policy("#" <> room)),
         "limits" => %{
           "max_message_bytes" => Application.get_env(:hangout, :message_body_max_bytes, 4000),
-          "max_messages_per_minute" => 6
+          "max_messages_per_minute" => room_agent_rate_limit("#" <> room)
         },
         "capabilities" => %{
           "can_post_unsolicited" => effective in [:free, :unleashed],
@@ -277,11 +277,21 @@ defmodule HangoutWeb.AgentController do
     end
   end
 
-  defp room_agent_policy(channel_name) do
+  defp room_agent_settings(channel_name) do
     case ChannelServer.agent_policy(channel_name) do
-      {:ok, policy} -> policy
-      _ -> :called
+      {:ok, policy, rate} -> {policy, rate}
+      _ -> {:called, 6}
     end
+  end
+
+  defp room_agent_policy(channel_name) do
+    {policy, _rate} = room_agent_settings(channel_name)
+    policy
+  end
+
+  defp room_agent_rate_limit(channel_name) do
+    {_policy, rate} = room_agent_settings(channel_name)
+    rate
   end
 
   defp effective_agent_mode(channel_name, token_mode) do
