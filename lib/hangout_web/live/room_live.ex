@@ -728,6 +728,21 @@ defmodule HangoutWeb.RoomLive do
                       <div class="guest-label">No one here yet</div>
                     <% end %>
                   </div>
+                  <form phx-submit="choose_nick" id="join-form-center" class="entry-join-form">
+                    <input
+                      type="text"
+                      name="nick"
+                      value=""
+                      placeholder="what's your name?"
+                      autocomplete="off"
+                      autofocus
+                      aria-label="Enter your name"
+                      class="entry-nick-input"
+                    />
+                    <button type="submit" class="entry-join-btn">
+                      <%= if @room_members == [], do: "Start the room", else: "Step in" %>
+                    </button>
+                  </form>
                   <div class="social-contract">
                     <p>The room disappears when everyone leaves.</p>
                     <p>Anyone present can still copy what they see.</p>
@@ -767,20 +782,7 @@ defmodule HangoutWeb.RoomLive do
                   <button type="submit" aria-label="Send">↑</button>
                 </form>
               <% else %>
-                <form phx-submit="choose_nick" id="join-form" style="display: flex; flex: 1; align-items: center; gap: 0.5rem;">
-                  <input
-                    type="text"
-                    name="nick"
-                    value=""
-                    placeholder="your name"
-                    autocomplete="off"
-                    autofocus
-                    aria-label="your name"
-                    style="font-family: var(--font-mono);"
-                  />
-                  <button type="submit" style="background:var(--accent);color:var(--btn-text);border:none;padding:0.4rem 1rem;border-radius:4px;cursor:pointer;font-weight:600;white-space:nowrap;">
-                    <%= if @room_members == [], do: "Start the room", else: "Step in" %>
-                  </button>
+                <form phx-submit="choose_nick" id="join-form" style="display: none;">
                 </form>
               <% end %>
             </div>

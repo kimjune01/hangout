@@ -454,6 +454,42 @@ defmodule HangoutWeb.Layouts do
           .nick-prompt button:hover { opacity: 0.9; }
 
           /* --- Social contract --- */
+          .entry-join-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            margin: var(--sp-8) auto var(--sp-4);
+            max-width: 16rem;
+            width: 100%;
+          }
+          .entry-nick-input {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 0.25rem;
+            font-size: 1.125rem;
+            font-family: var(--font-mono);
+            text-align: center;
+            width: 100%;
+            outline: none;
+          }
+          .entry-nick-input:focus { border-bottom-color: var(--accent); }
+          .entry-nick-input::placeholder { color: var(--dim); }
+          .entry-join-btn {
+            background: var(--accent);
+            color: var(--btn-text);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            width: 100%;
+            min-height: 48px;
+          }
+          .entry-join-btn:hover { opacity: 0.9; }
           .social-contract {
             font-size: 0.8125rem;
             color: var(--dim);
@@ -615,11 +651,11 @@ defmodule HangoutWeb.Layouts do
           .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--muted); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }
           .agent-tab:hover { color: var(--text); }
           .agent-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-          .agent-panel { min-height: 15.5rem; }
-          .agent-section { margin-bottom: 0.75rem; min-height: 7rem; }
+          .agent-panel { min-height: 12rem; }
+          .agent-section { margin-bottom: 0.75rem; }
           .agent-section:last-of-type { margin-bottom: 0.5rem; }
           .agent-section-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.125rem; }
-          .agent-section-label { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
+          .agent-section-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
           .agent-active-mode { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--accent); font-weight: 600; }
           .agent-active-mode.danger { color: var(--danger); }
           .freedom-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin: 0.125rem 0; }
@@ -627,7 +663,8 @@ defmodule HangoutWeb.Layouts do
           .freedom-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           .agent-invite-btn { background: none; color: var(--accent); border: 1px solid var(--accent); padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.8125rem; font-family: var(--font-mono); width: 100%; min-height: 44px; }
           .agent-invite-btn:hover { background: var(--accent); color: var(--btn-text); }
-          .agent-disconnect-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; }
+          .agent-disconnect-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; min-height: 44px; }
+          .agent-url-row .agent-copy-btn { min-height: unset; min-width: unset; padding: 0.25rem; }
           .agent-disconnect-btn:hover { background: var(--danger); color: var(--btn-text); }
           .agent-toast {
             position: fixed;
