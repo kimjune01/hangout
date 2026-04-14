@@ -208,6 +208,7 @@ defmodule Hangout.ChannelServer do
       state = append_buffer(state, msg)
 
       broadcast(state, {:message, state.name, msg})
+      route_mentions(state, msg)
       {:reply, {:ok, msg}, state}
     else
       {:secret, kind} -> {:reply, {:secret, kind}, state}

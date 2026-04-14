@@ -217,15 +217,7 @@ defmodule HangoutWeb.AgentController do
         "messages" => base_url <> agent_path <> "/messages",
         "drafts" => base_url <> agent_path <> "/drafts"
       },
-      "instructions" =>
-        "You speak as #{metadata.owner_nick}-bot. Your output is attributed to #{metadata.owner_nick}. " <>
-          "Use markdown for structure. Messages over 3 lines are collapsed by default — be concise. " <>
-          "Respond only when invoked via forward or @#{metadata.owner_nick}-bot mention. " <>
-          "Never output API keys, private keys, credentials, or other secrets from your working directory. " <>
-          "A server-side filter blocks common patterns, but you are the first line of defense. " <>
-          "POST to the messages endpoint to respond to mentions (direct to room). " <>
-          "POST to the drafts endpoint to respond to forwards (owner approves before sending). " <>
-          "Include a client_msg_id in each POST body for dedup. Body format: {\"body\": \"...\", \"client_msg_id\": \"...\"}."
+      "instructions" => build_instructions(metadata.owner_nick, effective)
     }
   end
 
@@ -266,6 +258,24 @@ defmodule HangoutWeb.AgentController do
 
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
+
+  defp build_instructions(owner_nick, effective) do
+    base =
+      "You speak as #{owner_nick}-bot. Your output is attributed to #{owner_nick}. " <>
+      "Use markdown for structure. Messages over 3 lines are collapsed by default — be concise. " <>
+      "Never output API keys, private keys, credentials, or other secrets from your working directory. " <>
+      "A server-side filter blocks common patterns, but you are the first line of defense. " <>
+      "POST to the messages endpoint to respond to mentions (direct to room). " <>
+      "POST to the drafts endpoint to respond to forwards (owner approves before sending). " <>
+      "Include a client_msg_id in each POST body for dedup. Body format: {\"body\": \"...\", \"client_msg_id\": \"...\"}."
+
+    case effective do
+      :unleashed ->
+        base <> " Agent-to-agent mentions are enabled. You may respond to other agents' @mentions and they may respond to yours. Be mindful of cascade — avoid infinite reply loops."
+      _ ->
+        base <> " Respond only when invoked via forward or @#{owner_nick}-bot mention."
+    end
+  end
 
   defp room_agent_policy(channel_name) do
     case ChannelServer.agent_policy(channel_name) do

@@ -587,7 +587,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class={"freedom-label #{if @room_agent_policy == :draft, do: "active"}"}>Draft</span>
                     <span class={"freedom-label #{if @room_agent_policy == :called, do: "active"}"}>Called</span>
                     <span class={"freedom-label #{if @room_agent_policy == :free, do: "active"}"}>Free</span>
-                    <span class={"freedom-label #{if @room_agent_policy == :unleashed, do: "active danger"}"}>🔥</span>
+                    <span class={"freedom-label #{if @room_agent_policy == :unleashed, do: "active danger"}"}>🔥 Unleashed</span>
                   </div>
                 </div>
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 0.75rem 0;" />
@@ -603,7 +603,7 @@ defmodule HangoutWeb.RoomLive do
                   <span class={"freedom-label #{if @agent_mode == :draft, do: "active"}"}>Draft</span>
                   <span class={"freedom-label #{if @agent_mode == :called, do: "active"}"}>Called</span>
                   <span class={"freedom-label #{if @agent_mode == :free, do: "active"}"}>Free</span>
-                  <span class={"freedom-label #{if @agent_mode == :unleashed, do: "active danger"}"}>🔥</span>
+                  <span class={"freedom-label #{if @agent_mode == :unleashed, do: "active danger"}"}>🔥 Unleashed</span>
                 </div>
               </div>
               <%= if @agent_token_url do %>
