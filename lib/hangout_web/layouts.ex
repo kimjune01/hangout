@@ -605,6 +605,11 @@ defmodule HangoutWeb.Layouts do
           .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
           .agent-copy-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
           .agent-copy-btn:hover { color: var(--accent); }
+          .agent-status { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; margin-top: 0.25rem; font-size: 0.8125rem; font-family: var(--font-mono); color: var(--dim); }
+          .agent-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; animation: status-pulse 2s ease-in-out infinite; }
+          .agent-status.connected .agent-status-dot { background: var(--accent); animation: none; }
+          .agent-status.connected { color: var(--accent); }
+          @keyframes status-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
           .agent-modal { min-width: 240px; }
           .agent-tabs { display: flex; gap: 1rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
           .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--muted); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }

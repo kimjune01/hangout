@@ -641,8 +641,9 @@ defmodule HangoutWeb.RoomLive do
                     <code class="agent-url">{@agent_token_url}</code>
                     <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
                   </div>
-                  <div class="hint">
-                    <%= if @agent_connected?, do: "🟢 connected", else: "⚪ waiting for agent…" %>
+                  <div class={"agent-status #{if @agent_connected?, do: "connected"}"}>
+                    <span class="agent-status-dot"></span>
+                    <span><%= if @agent_connected?, do: "connected", else: "waiting for agent…" %></span>
                   </div>
                 <% else %>
                   <button class="agent-invite-btn" phx-click="generate_agent_token">Generate invite link</button>
