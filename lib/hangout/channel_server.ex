@@ -759,7 +759,8 @@ defmodule Hangout.ChannelServer do
     |> AgentToken.active_for_room()
     |> Enum.filter(&mentions_owner?(body, &1.owner_nick))
     |> Enum.reject(fn metadata ->
-      String.downcase(msg.from) == String.downcase(metadata.owner_nick)
+      metadata.mode == :leashed or
+        String.downcase(msg.from) == String.downcase(metadata.owner_nick)
     end)
     |> Enum.each(fn metadata ->
       event = {

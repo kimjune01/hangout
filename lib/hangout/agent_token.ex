@@ -21,8 +21,11 @@ defmodule Hangout.AgentToken do
 
   def table, do: @table
 
-  def create(room_id, owner_nick, keypair_fingerprint) do
-    GenServer.call(__MODULE__, {:create, room_id, owner_nick, keypair_fingerprint})
+  @valid_modes ~w(leashed addressable autonomous)a
+
+  def create(room_id, owner_nick, keypair_fingerprint, mode \\ :addressable)
+      when mode in @valid_modes do
+    GenServer.call(__MODULE__, {:create, room_id, owner_nick, keypair_fingerprint, mode})
   end
 
   def validate(room_slug, raw_token) when is_binary(raw_token) do
@@ -210,7 +213,7 @@ defmodule Hangout.AgentToken do
   end
 
   @impl true
-  def handle_call({:create, room_id, owner_nick, keypair_fingerprint}, _from, state) do
+  def handle_call({:create, room_id, owner_nick, keypair_fingerprint, mode}, _from, state) do
     room_id = ChannelRegistry.canonical!(room_id)
 
     case find_active_for_nick(room_id, owner_nick) do
@@ -230,6 +233,7 @@ defmodule Hangout.AgentToken do
           room_slug: ChannelRegistry.slug(room_id),
           owner_nick: owner_nick,
           keypair_fingerprint: keypair_fingerprint,
+          mode: mode,
           created_at: now,
           expires_at: DateTime.add(now, ttl, :second),
           revoked_at: nil

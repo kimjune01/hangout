@@ -605,6 +605,16 @@ defmodule HangoutWeb.Layouts do
           .agent-url { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); word-break: break-all; flex: 1; overflow: hidden; text-overflow: ellipsis; user-select: all; }
           .agent-copy-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
           .agent-copy-btn:hover { color: var(--accent); }
+          .agent-modal { min-width: 260px; }
+          .agent-slider { margin-top: 0.5rem; }
+          .freedom-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+          .freedom-labels { display: flex; justify-content: space-between; margin-top: 0.25rem; }
+          .freedom-label { font-size: 0.6875rem; font-family: var(--font-mono); color: var(--dim); transition: color 0.15s; }
+          .freedom-label.active { color: var(--accent); font-weight: 600; }
+          .agent-invite-btn { background: var(--accent); color: var(--btn-text); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600; width: 100%; }
+          .agent-invite-btn:hover { opacity: 0.9; }
+          .agent-disconnect-btn { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 0.4rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; }
+          .agent-disconnect-btn:hover { background: var(--danger); color: var(--btn-text); }
           .agent-toast {
             position: fixed;
             bottom: 4rem;

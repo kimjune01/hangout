@@ -52,6 +52,9 @@ defmodule HangoutWeb.AgentController do
   def messages(conn, %{"room" => room, "token" => token}) do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
+        if metadata.mode == :leashed do
+          conn |> put_status(403) |> json(%{"ok" => false, "error" => "leashed_agent", "hint" => "This agent can only respond via /drafts. The owner approves before sending."})
+        else
         case request_body(conn) do
           {:ok, params} ->
             raw_body = params["body"]
@@ -106,6 +109,7 @@ defmodule HangoutWeb.AgentController do
 
           {:error, _} ->
             conn |> put_status(400) |> json(%{"ok" => false, "error" => "invalid_json"})
+        end
         end
 
       {:error, reason} ->
@@ -181,17 +185,18 @@ defmodule HangoutWeb.AgentController do
         "room" => room,
         "owner" => metadata.owner_nick,
         "agent_nick" => metadata.owner_nick <> "🤖",
+        "mode" => to_string(metadata.mode),
         "limits" => %{
           "max_message_bytes" => Application.get_env(:hangout, :message_body_max_bytes, 4000),
           "max_messages_per_minute" => 6
         },
         "capabilities" => %{
-          "can_post_unsolicited" => false,
-          "owner_forward_requires_draft" => true,
-          "direct_mentions_auto_post" => true
+          "can_post_unsolicited" => metadata.mode == :autonomous,
+          "owner_forward_requires_draft" => metadata.mode == :leashed,
+          "direct_mentions_auto_post" => metadata.mode in [:addressable, :autonomous]
         },
         "routing" => %{
-          "respond_to" => ["forward", "mention"],
+          "respond_to" => mode_routes(metadata.mode),
           "ignore_own_messages" => true,
           "agent_to_agent_mentions" => false
         }
@@ -249,6 +254,10 @@ defmodule HangoutWeb.AgentController do
 
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
+
+  defp mode_routes(:leashed), do: ["forward"]
+  defp mode_routes(:addressable), do: ["forward", "mention"]
+  defp mode_routes(:autonomous), do: ["forward", "mention", "unsolicited"]
 
   defp validate_client_msg_id(nil), do: {:ok, nil}
   defp validate_client_msg_id(id) when is_binary(id) and byte_size(id) <= 128, do: {:ok, id}

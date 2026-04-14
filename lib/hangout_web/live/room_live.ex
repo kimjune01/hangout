@@ -59,7 +59,9 @@ defmodule HangoutWeb.RoomLive do
         info_open?: false,
         agent_connected?: false,
         agent_token: nil,
-        agent_token_url: nil
+        agent_token_url: nil,
+        agent_mode: :addressable,
+        agent_modal_open?: false
       )
 
     {:ok, socket}
@@ -288,6 +290,30 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("toggle_agent_modal", _params, socket) do
+    {:noreply, assign(socket, agent_modal_open?: not socket.assigns.agent_modal_open?)}
+  end
+
+  def handle_event("set_agent_mode", %{"mode" => mode_str}, socket) do
+    mode = case mode_str do
+      "0" -> :leashed
+      "1" -> :addressable
+      "2" -> :autonomous
+      _ -> :addressable
+    end
+
+    # If a token already exists with a different mode, revoke and clear it
+    socket =
+      if socket.assigns[:agent_token] and socket.assigns[:agent_mode] != mode do
+        revoke_current_agent(socket)
+        |> assign(agent_token: nil, agent_token_url: nil, agent_connected?: false)
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, agent_mode: mode)}
+  end
+
   def handle_event("copy_agent_url", _params, socket) do
     if socket.assigns.joined? do
       socket = ensure_agent_token(socket)
@@ -303,7 +329,7 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("generate_agent_token", _params, socket) do
     if socket.assigns.joined? do
-      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
+      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key, socket.assigns.agent_mode) do
         {:ok, token} ->
           token_hash = Hangout.AgentToken.hash_token(token)
 
@@ -503,7 +529,7 @@ defmodule HangoutWeb.RoomLive do
             <% end %>
             <button class="info-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme" phx-hook="ThemeToggle" onclick="(function(){var h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('hangout_theme',t);this.textContent=t==='dark'?'☀':'☾'}).call(this)">☀</button>
             <%= if @joined? do %>
-              <button class="info-btn" phx-click="copy_agent_url" aria-label="Invite agent" title="Invite agent">🤖</button>
+              <button class="info-btn" phx-click="toggle_agent_modal" aria-label="Invite agent" title="Invite agent">🤖</button>
             <% end %>
             <button class="info-btn" phx-click="toggle_info" aria-label="Info" title="Info">💬</button>
           </div>
@@ -515,6 +541,50 @@ defmodule HangoutWeb.RoomLive do
               agent_connected?={@agent_connected?}
               nick={@nick}
             />
+          <% end %>
+
+          <%= if @agent_modal_open? do %>
+            <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
+            <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
+              <h3>Agent freedom</h3>
+              <div class="agent-slider">
+                <input type="range" min="0" max="2" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class="freedom-slider" />
+                <div class="freedom-labels">
+                  <span class={"freedom-label #{if @agent_mode == :leashed, do: "active"}"}>🔒 Leashed</span>
+                  <span class={"freedom-label #{if @agent_mode == :addressable, do: "active"}"}>💬 Addressable</span>
+                  <span class={"freedom-label #{if @agent_mode == :autonomous, do: "active"}"}>⚡ Autonomous</span>
+                </div>
+              </div>
+              <div class="hint" style="margin-top: 0.5rem;">
+                <%= case @agent_mode do %>
+                  <% :leashed -> %>
+                    Owner forwards only. Every response needs your approval.
+                  <% :addressable -> %>
+                    Anyone can @mention your agent. It replies directly.
+                  <% :autonomous -> %>
+                    Agent can speak freely. No invocation needed.
+                <% end %>
+              </div>
+              <%= if @agent_token_url do %>
+                <div class="agent-url-row" style="margin-top: 0.75rem;">
+                  <code class="agent-url">{@agent_token_url}</code>
+                  <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
+                </div>
+                <div class="hint" style="margin-top: 0.25rem;">
+                  <%= if @agent_connected? do %>
+                    🟢 connected
+                  <% else %>
+                    ⚪ waiting for agent…
+                  <% end %>
+                </div>
+                <button class="agent-disconnect-btn" phx-click="revoke_agent_token" style="margin-top: 0.5rem;">🔌 Disconnect</button>
+              <% else %>
+                <button class="agent-invite-btn" phx-click="generate_agent_token" style="margin-top: 0.75rem;">Generate invite link</button>
+              <% end %>
+              <div class="hint" style="margin-top: 0.5rem;">
+                Your agent sees room messages and responds from your working directory.
+              </div>
+            </div>
           <% end %>
         </header>
 
@@ -995,11 +1065,16 @@ defmodule HangoutWeb.RoomLive do
     |> to_string()
   end
 
+  defp agent_mode_value(:leashed), do: 0
+  defp agent_mode_value(:addressable), do: 1
+  defp agent_mode_value(:autonomous), do: 2
+  defp agent_mode_value(_), do: 1
+
   defp ensure_agent_token(socket) do
     if socket.assigns[:agent_token] do
       socket
     else
-      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
+      case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key, socket.assigns.agent_mode) do
         {:ok, token} ->
           token_hash = Hangout.AgentToken.hash_token(token)
 
