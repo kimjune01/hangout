@@ -109,6 +109,11 @@ defmodule HangoutWeb.Layouts do
           .message.system:only-child { animation: gentle-pulse 3s ease-in-out infinite; }
           .message.action { color: var(--accent); }
           .message.notice { color: var(--accent-2); }
+          .message.agent {
+            border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+            padding-left: var(--sp-2);
+            background: color-mix(in srgb, var(--accent) 4%, transparent);
+          }
 
           /* --- Markdown in messages --- */
           .md-body { display: inline; }
@@ -208,6 +213,15 @@ defmodule HangoutWeb.Layouts do
             padding-left: var(--sp-2);
             padding-right: var(--sp-2);
             background: color-mix(in srgb, var(--accent) 8%, transparent);
+          }
+          @keyframes draft-arrive {
+            0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+            60%  { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+            100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+          }
+          .input-bar.draft-arriving { animation: draft-arrive 0.6s ease-out; }
+          @media (prefers-reduced-motion: reduce) {
+            .input-bar.draft-arriving { animation: none; }
           }
           .input-bar.draft-mode .nick-label { display: none; }
           .input-bar .nick-label {

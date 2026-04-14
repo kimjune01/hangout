@@ -536,7 +536,7 @@ defmodule HangoutWeb.RoomLive do
                   <div class="message system" style="text-align: center; margin-top: 2rem;">No messages yet.</div>
                 <% end %>
                 <%= for msg <- @messages do %>
-                  <div class={"message #{message_class(msg)}"} id={"msg-#{msg.id}"}>
+                  <div class={"message #{message_class(msg)}#{if Map.get(msg, :agent, false), do: " agent", else: ""}"} id={"msg-#{msg.id}"}>
                     <span class="time" data-utc={DateTime.to_iso8601(msg.at)}>{format_time(msg.at)}</span>
                     <%= case msg.kind do %>
                       <% :privmsg -> %>

@@ -431,7 +431,17 @@ const MessageForm = {
 
     const enterDraft = ({ body, nick }) => {
       this.draftMode = true;
-      if (inputBar) inputBar.classList.add("draft-mode");
+      if (inputBar) {
+        inputBar.classList.add("draft-mode");
+        if (this.draftPulseTimer) clearTimeout(this.draftPulseTimer);
+        inputBar.classList.remove("draft-arriving");
+        void inputBar.offsetWidth;
+        inputBar.classList.add("draft-arriving");
+        this.draftPulseTimer = setTimeout(() => {
+          inputBar.classList.remove("draft-arriving");
+          this.draftPulseTimer = null;
+        }, 700);
+      }
       if (draftFlag) {
         draftFlag.value = "true";
         draftFlag.disabled = false;
