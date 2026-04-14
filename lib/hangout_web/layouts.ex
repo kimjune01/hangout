@@ -545,7 +545,7 @@ defmodule HangoutWeb.Layouts do
             min-width: 280px;
             max-width: 360px;
             width: 90vw;
-            animation: fade-in 0.15s ease-out;
+            animation: modal-fade-in 0.15s ease-out;
           }
           .info-modal h3 {
             font-family: var(--font-mono);
@@ -591,6 +591,11 @@ defmodule HangoutWeb.Layouts do
           @keyframes fade-in {
             from { opacity: 0; transform: translateY(4px); }
             to { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes modal-fade-in {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
           }
 
           @keyframes msg-enter {
