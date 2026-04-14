@@ -10,6 +10,7 @@ defmodule Hangout.AgentToken do
   @table :agent_tokens
   @dedup_table :agent_msg_dedup
   @rate_table :agent_rate_limit
+  @presence_table :agent_presence
   @prefix "agt_"
   @token_bytes 32
   @default_ttl_seconds 24 * 60 * 60
@@ -110,6 +111,37 @@ defmodule Hangout.AgentToken do
 
   def agent_topic(token_hash), do: "agent:" <> Base.encode16(token_hash, case: :lower)
 
+  def presence_topic(channel_name, owner_nick),
+    do: "agent_presence:" <> channel_name <> ":" <> owner_nick
+
+  @doc "Record that an agent SSE stream has attached. Broadcasts if state transitions to attached."
+  def mark_attached(token_hash, pid, topic) when is_binary(token_hash) and is_pid(pid) do
+    was_attached? = :ets.member(@presence_table, token_hash)
+    :ets.insert(@presence_table, {token_hash, pid})
+
+    unless was_attached? do
+      Phoenix.PubSub.broadcast(Hangout.PubSub, topic, {:agent_attached, token_hash})
+    end
+
+    :ok
+  end
+
+  @doc "Record that an agent SSE stream has detached. Broadcasts only if this was the active stream."
+  def mark_detached(token_hash, pid, topic) when is_binary(token_hash) and is_pid(pid) do
+    case :ets.lookup(@presence_table, token_hash) do
+      [{^token_hash, ^pid}] ->
+        :ets.delete(@presence_table, token_hash)
+        Phoenix.PubSub.broadcast(Hangout.PubSub, topic, {:agent_detached, token_hash})
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  def attached?(token_hash) when is_binary(token_hash),
+    do: :ets.member(@presence_table, token_hash)
+
   def check_rate_limit(raw_token, max_per_minute \\ 6) do
     token_hash = hash_token(raw_token)
     # Fixed-window rate limit keyed by {token_hash, minute_bucket}
@@ -165,6 +197,7 @@ defmodule Hangout.AgentToken do
     :ets.delete_all_objects(@table)
     :ets.delete_all_objects(@dedup_table)
     :ets.delete_all_objects(@rate_table)
+    :ets.delete_all_objects(@presence_table)
   end
 
   @impl true
@@ -172,6 +205,7 @@ defmodule Hangout.AgentToken do
     ensure_table(@table)
     ensure_table(@dedup_table)
     ensure_table(@rate_table)
+    ensure_table(@presence_table)
     {:ok, %{rooms: MapSet.new()}}
   end
 
@@ -276,6 +310,8 @@ defmodule Hangout.AgentToken do
   defp channel_topic(room_id), do: "channel:" <> room_id
 
   defp cleanup_token_state(token_hash) do
+    :ets.delete(@presence_table, token_hash)
+
     # Remove dedup entries for this token
     :ets.foldl(
       fn

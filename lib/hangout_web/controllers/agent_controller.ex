@@ -8,11 +8,14 @@ defmodule HangoutWeb.AgentController do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
         channel_name = "#" <> room
-        agent_topic = AgentToken.agent_topic(AgentToken.hash_token(token))
+        token_hash = AgentToken.hash_token(token)
+        agent_topic = AgentToken.agent_topic(token_hash)
         channel_topic = ChannelServer.topic_name(channel_name)
+        presence_topic = AgentToken.presence_topic(channel_name, metadata.owner_nick)
 
         Phoenix.PubSub.subscribe(Hangout.PubSub, channel_topic)
         Phoenix.PubSub.subscribe(Hangout.PubSub, agent_topic)
+        AgentToken.mark_attached(token_hash, self(), presence_topic)
 
         try do
           conn =
@@ -33,6 +36,7 @@ defmodule HangoutWeb.AgentController do
             {:error, _reason} -> conn
           end
         after
+          AgentToken.mark_detached(token_hash, self(), presence_topic)
           Phoenix.PubSub.unsubscribe(Hangout.PubSub, channel_topic)
           Phoenix.PubSub.unsubscribe(Hangout.PubSub, agent_topic)
         end

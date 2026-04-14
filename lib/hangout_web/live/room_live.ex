@@ -158,7 +158,9 @@ defmodule HangoutWeb.RoomLive do
          :ok <- NickRegistry.change(old_nick, new_nick, %{transport: :liveview}),
          :ok <- ChannelServer.change_nick(socket.assigns.channel_name, old_nick, new_nick) do
       Phoenix.PubSub.unsubscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, old_nick))
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, Hangout.AgentToken.presence_topic(socket.assigns.channel_name, old_nick))
       Phoenix.PubSub.subscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, new_nick))
+      Phoenix.PubSub.subscribe(Hangout.PubSub, Hangout.AgentToken.presence_topic(socket.assigns.channel_name, new_nick))
 
       socket =
         socket
@@ -255,6 +257,7 @@ defmodule HangoutWeb.RoomLive do
       ChannelServer.part(socket.assigns.channel_name, socket.assigns.nick, "changing name")
       NickRegistry.unregister(socket.assigns.nick)
       Phoenix.PubSub.unsubscribe(Hangout.PubSub, agent_draft_topic(socket.assigns.channel_name, socket.assigns.nick))
+      Phoenix.PubSub.unsubscribe(Hangout.PubSub, Hangout.AgentToken.presence_topic(socket.assigns.channel_name, socket.assigns.nick))
     end
 
     # Refresh guest list for re-entry screen
@@ -289,9 +292,11 @@ defmodule HangoutWeb.RoomLive do
     if socket.assigns.joined? do
       case Hangout.AgentToken.create(socket.assigns.channel_name, socket.assigns.nick, socket.assigns.public_key) do
         {:ok, token} ->
+          token_hash = Hangout.AgentToken.hash_token(token)
+
           {:noreply,
            assign(socket,
-             agent_connected?: true,
+             agent_connected?: Hangout.AgentToken.attached?(token_hash),
              agent_token: token,
              agent_token_url: agent_token_url(socket, token)
            )}
@@ -408,6 +413,22 @@ defmodule HangoutWeb.RoomLive do
   @impl true
   def handle_info({:agent_draft, %{body: body}}, socket) do
     {:noreply, push_event(socket, "hangout:agent_draft", %{body: body, nick: socket.assigns.nick})}
+  end
+
+  def handle_info({:agent_attached, token_hash}, socket) do
+    if own_token_hash?(socket, token_hash) do
+      {:noreply, assign(socket, agent_connected?: true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:agent_detached, token_hash}, socket) do
+    if own_token_hash?(socket, token_hash) do
+      {:noreply, assign(socket, agent_connected?: false)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -675,6 +696,7 @@ defmodule HangoutWeb.RoomLive do
           {:ok, snapshot, token} ->
             Phoenix.PubSub.subscribe(Hangout.PubSub, ChannelServer.topic_name(channel_name))
             Phoenix.PubSub.subscribe(Hangout.PubSub, agent_draft_topic(channel_name, nick))
+            Phoenix.PubSub.subscribe(Hangout.PubSub, Hangout.AgentToken.presence_topic(channel_name, nick))
 
             moderator? =
               token != nil or
@@ -958,6 +980,13 @@ defmodule HangoutWeb.RoomLive do
   end
 
   defp agent_draft_topic(channel_name, nick), do: "agent_draft:#{channel_name}:#{nick}"
+
+  defp own_token_hash?(socket, incoming_hash) do
+    case socket.assigns[:agent_token] do
+      token when is_binary(token) -> Hangout.AgentToken.hash_token(token) == incoming_hash
+      _ -> false
+    end
+  end
 
   defp find_message(messages, id) do
     case Enum.find(messages, &(to_string(&1.id) == to_string(id))) do

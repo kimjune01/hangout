@@ -42,7 +42,14 @@ defmodule HangoutWeb.InfoModal do
             <div class="hint">
               Your agent will see room messages and respond from your working directory. Don't connect from directories with secrets you wouldn't share.
             </div>
-            <%= if @agent_connected? do %>
+            <%= if @agent_token_url do %>
+              <div class="hint">
+                <%= if @agent_connected? do %>
+                  🟢 agent connected
+                <% else %>
+                  ⚪ waiting for agent to connect…
+                <% end %>
+              </div>
               <div class="agent-invite-actions">
                 <button phx-click="revoke_agent_token">Disconnect agent</button>
               </div>
