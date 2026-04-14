@@ -754,7 +754,7 @@ defmodule HangoutWeb.RoomLive do
                   </form>
                   <div class="social-contract">
                     <p>The room disappears when everyone leaves.</p>
-                    <p>Anyone present can still copy what they see.</p>
+                    <p>See how deep the rabbit hole goes.</p>
                     <%= if @legal_url do %>
                       <p><a href={@legal_url} target="_blank" style="color: var(--dim);">terms & privacy</a></p>
                     <% end %>
