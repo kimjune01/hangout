@@ -607,10 +607,10 @@ defmodule HangoutWeb.Layouts do
           .agent-copy-btn:hover { color: var(--accent); }
           .agent-modal { min-width: 240px; }
           .agent-tabs { display: flex; gap: 1rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
-          .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--dim); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; }
+          .agent-tab { background: none; border: none; border-bottom: 3px solid transparent; color: var(--dim); font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.375rem 0; cursor: pointer; min-height: 44px; transition: color 0.2s, border-color 0.2s; }
           .agent-tab:hover { color: var(--text); }
           .agent-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-          .agent-section { margin-bottom: 0.75rem; }
+          .agent-section { margin-bottom: 0.75rem; min-height: 7rem; }
           .agent-section:last-of-type { margin-bottom: 0.5rem; }
           .agent-section-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.125rem; }
           .agent-section-label { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
