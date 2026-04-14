@@ -61,7 +61,8 @@ defmodule HangoutWeb.RoomLive do
         agent_token: nil,
         agent_token_url: nil,
         agent_mode: :called,
-        agent_modal_open?: false
+        agent_modal_open?: false,
+        room_agent_policy: :called
       )
 
     {:ok, socket}
@@ -313,6 +314,30 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, assign(socket, agent_mode: mode)}
   end
 
+  def handle_event("set_room_agent_policy", %{"policy" => policy_str}, socket) do
+    if socket.assigns.moderator? do
+      policy = case policy_str do
+        "0" -> :off
+        "1" -> :draft
+        "2" -> :called
+        "3" -> :free
+        _ -> :called
+      end
+
+      case ChannelServer.set_agent_policy(
+        socket.assigns.channel_name,
+        socket.assigns.nick,
+        policy,
+        socket.assigns.mod_token
+      ) do
+        :ok -> {:noreply, assign(socket, room_agent_policy: policy)}
+        {:error, _} -> {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("copy_agent_url", _params, socket) do
     if socket.assigns.joined? do
       socket = ensure_agent_token(socket)
@@ -545,18 +570,25 @@ defmodule HangoutWeb.RoomLive do
           <%= if @agent_modal_open? do %>
             <div class="info-backdrop" phx-click="toggle_agent_modal"></div>
             <div class="info-modal agent-modal" phx-window-keydown="toggle_agent_modal" phx-key="Escape">
-              <h3>Agent</h3>
+              <%= if @moderator? do %>
+                <h3>Room policy</h3>
+                <div class="agent-mode-desc">
+                  <%= agent_policy_desc(@room_agent_policy) %>
+                </div>
+                <div class="agent-slider">
+                  <input type="range" min="0" max="3" value={agent_mode_value(@room_agent_policy)} phx-change="set_room_agent_policy" name="policy" class="freedom-slider" />
+                  <div class="freedom-labels">
+                    <span class={"freedom-label #{if @room_agent_policy == :off, do: "active"}"}>Off</span>
+                    <span class={"freedom-label #{if @room_agent_policy == :draft, do: "active"}"}>Draft</span>
+                    <span class={"freedom-label #{if @room_agent_policy == :called, do: "active"}"}>Called</span>
+                    <span class={"freedom-label #{if @room_agent_policy == :free, do: "active"}"}>Free</span>
+                  </div>
+                </div>
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 0.75rem 0;" />
+              <% end %>
+              <h3>My agent</h3>
               <div class="agent-mode-desc">
-                <%= case @agent_mode do %>
-                  <% :off -> %>
-                    Agent cannot speak. Connection stays alive.
-                  <% :draft -> %>
-                    Owner forwards only. Every response needs your approval.
-                  <% :called -> %>
-                    Anyone can @mention your agent. It replies directly.
-                  <% :free -> %>
-                    Agent can speak freely. No invocation needed.
-                <% end %>
+                <%= agent_mode_desc(@agent_mode) %>
               </div>
               <div class="agent-slider">
                 <input type="range" min="0" max="3" value={agent_mode_value(@agent_mode)} phx-change="set_agent_mode" name="mode" class="freedom-slider" />
@@ -802,7 +834,8 @@ defmodule HangoutWeb.RoomLive do
                 expires_at: snapshot[:expires_at],
                 moderator?: moderator?,
                 mod_token: mod_token || token,
-                mod_capability_url: mod_url
+                mod_capability_url: mod_url,
+                room_agent_policy: snapshot[:agent_policy] || :called
               )
 
             {:ok, socket}
@@ -999,6 +1032,10 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
+  defp apply_event(socket, {:agent_policy_changed, _channel, policy}) do
+    assign(socket, room_agent_policy: policy)
+  end
+
   defp apply_event(socket, _event), do: socket
 
 
@@ -1065,6 +1102,18 @@ defmodule HangoutWeb.RoomLive do
     |> URI.merge(path)
     |> to_string()
   end
+
+  defp agent_mode_desc(:off), do: "Agent cannot speak. Connection stays alive."
+  defp agent_mode_desc(:draft), do: "Owner forwards only. Every response needs your approval."
+  defp agent_mode_desc(:called), do: "Anyone can @mention your agent. It replies directly."
+  defp agent_mode_desc(:free), do: "Agent can speak freely. No invocation needed."
+  defp agent_mode_desc(_), do: ""
+
+  defp agent_policy_desc(:off), do: "No agents can speak in this room."
+  defp agent_policy_desc(:draft), do: "Agents can only draft responses for owner approval."
+  defp agent_policy_desc(:called), do: "Agents can respond when @mentioned."
+  defp agent_policy_desc(:free), do: "Agents can speak freely in this room."
+  defp agent_policy_desc(_), do: ""
 
   defp agent_mode_value(:off), do: 0
   defp agent_mode_value(:draft), do: 1

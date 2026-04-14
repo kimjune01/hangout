@@ -27,7 +27,8 @@ defmodule Hangout.ChannelServer do
             bot_count: 0,
             next_message_id: 1,
             ttl_ref: nil,
-            voice_participants: MapSet.new()
+            voice_participants: MapSet.new(),
+            agent_policy: :called
 
   # --- Client API ---
 
@@ -68,6 +69,8 @@ defmodule Hangout.ChannelServer do
   def who(name), do: call(name, :who)
   def whois(name, nick), do: call(name, {:whois, nick})
   def mark_bot(name, nick), do: call(name, {:mark_bot, nick})
+  def set_agent_policy(name, actor, policy, token \\ nil), do: call(name, {:set_agent_policy, actor, policy, token})
+  def agent_policy(name), do: call(name, :agent_policy)
   def voice_join(name, nick), do: call(name, {:voice_join, nick})
   def voice_leave(name, nick), do: call(name, {:voice_leave, nick})
   def voice_signal(name, from, to, signal), do: call(name, {:voice_signal, from, to, signal})
@@ -412,6 +415,23 @@ defmodule Hangout.ChannelServer do
     {:reply, :ok, state}
   end
 
+  @agent_policies ~w(off draft called free)a
+
+  def handle_call({:set_agent_policy, actor, policy, token}, _from, state)
+      when policy in @agent_policies do
+    if authorized?(state, actor, token) do
+      state = %{state | agent_policy: policy}
+      broadcast(state, {:agent_policy_changed, state.name, policy})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :chanop_needed}, state}
+    end
+  end
+
+  def handle_call(:agent_policy, _from, state) do
+    {:reply, {:ok, state.agent_policy}, state}
+  end
+
   def handle_call({:validate_mod, token}, _from, state) do
     {:reply, valid_token?(state, token), state}
   end
@@ -664,7 +684,8 @@ defmodule Hangout.ChannelServer do
       modes: state.modes,
       human_count: state.human_count,
       bot_count: state.bot_count,
-      voice_participants: MapSet.to_list(state.voice_participants)
+      voice_participants: MapSet.to_list(state.voice_participants),
+      agent_policy: state.agent_policy
     }
   end
 
@@ -759,7 +780,8 @@ defmodule Hangout.ChannelServer do
     |> AgentToken.active_for_room()
     |> Enum.filter(&mentions_owner?(body, &1.owner_nick))
     |> Enum.reject(fn metadata ->
-      metadata.mode in [:off, :draft] or
+      effective = AgentToken.effective_mode(metadata.mode, state.agent_policy)
+      effective in [:off, :draft] or
         String.downcase(msg.from) == String.downcase(metadata.owner_nick)
     end)
     |> Enum.each(fn metadata ->

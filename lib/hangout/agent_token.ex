@@ -218,6 +218,12 @@ defmodule Hangout.AgentToken do
 
   def release_dedup(_raw_token, _client_msg_id), do: :ok
 
+  @mode_rank %{off: 0, draft: 1, called: 2, free: 3}
+
+  def effective_mode(token_mode, room_policy) do
+    if @mode_rank[token_mode] <= @mode_rank[room_policy], do: token_mode, else: room_policy
+  end
+
   def hash_token(raw_token), do: :crypto.hash(:sha256, raw_token)
 
   def reset! do

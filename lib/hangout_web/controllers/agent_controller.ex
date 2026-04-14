@@ -31,7 +31,7 @@ defmodule HangoutWeb.AgentController do
 
           with {:ok, conn} <- chunk(conn, sse_event("context", build_context(room, token, metadata))),
                {:ok, conn} <- chunk(conn, sse_event("history", build_history(channel_name))) do
-            sse_loop(conn)
+            sse_loop(conn, channel_name, metadata.mode)
           else
             {:error, _reason} -> conn
           end
@@ -52,8 +52,10 @@ defmodule HangoutWeb.AgentController do
   def messages(conn, %{"room" => room, "token" => token}) do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
-        if metadata.mode in [:off, :draft] do
-          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_restricted", "hint" => "This agent's mode is #{metadata.mode}. Use /drafts for owner-approved responses, or ask the owner to increase permissions."})
+        effective = effective_agent_mode("#" <> room, metadata.mode)
+
+        if effective in [:off, :draft] do
+          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_restricted", "hint" => "Effective mode is #{effective}. Use /drafts for owner-approved responses, or ask the owner/mod to increase permissions."})
         else
         case request_body(conn) do
           {:ok, params} ->
@@ -123,8 +125,10 @@ defmodule HangoutWeb.AgentController do
   def drafts(conn, %{"room" => room, "token" => token}) do
     case AgentToken.validate(room, token) do
       {:ok, metadata} ->
-        if metadata.mode == :off do
-          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_off", "hint" => "Agent is turned off. Ask the owner to slide the permission up."})
+        effective_drafts = effective_agent_mode("#" <> room, metadata.mode)
+
+        if effective_drafts == :off do
+          conn |> put_status(403) |> json(%{"ok" => false, "error" => "agent_off", "hint" => "Agent is turned off. Ask the owner or mod to increase permissions."})
         else
         case request_body(conn) do
           {:ok, params} ->
@@ -184,23 +188,27 @@ defmodule HangoutWeb.AgentController do
     base_url = HangoutWeb.Endpoint.url()
     agent_path = "/#{room}/agent/#{token}"
 
+    effective = effective_agent_mode("#" <> room, metadata.mode)
+
     %{
       "contract" => %{
         "room" => room,
         "owner" => metadata.owner_nick,
         "agent_nick" => metadata.owner_nick <> "🤖",
-        "mode" => to_string(metadata.mode),
+        "mode" => to_string(effective),
+        "owner_mode" => to_string(metadata.mode),
+        "room_policy" => to_string(room_agent_policy("#" <> room)),
         "limits" => %{
           "max_message_bytes" => Application.get_env(:hangout, :message_body_max_bytes, 4000),
           "max_messages_per_minute" => 6
         },
         "capabilities" => %{
-          "can_post_unsolicited" => metadata.mode == :free,
-          "owner_forward_requires_draft" => metadata.mode in [:off, :draft],
-          "direct_mentions_auto_post" => metadata.mode in [:called, :free]
+          "can_post_unsolicited" => effective == :free,
+          "owner_forward_requires_draft" => effective in [:off, :draft],
+          "direct_mentions_auto_post" => effective in [:called, :free]
         },
         "routing" => %{
-          "respond_to" => mode_routes(metadata.mode),
+          "respond_to" => mode_routes(effective),
           "ignore_own_messages" => true,
           "agent_to_agent_mentions" => false
         }
@@ -259,6 +267,25 @@ defmodule HangoutWeb.AgentController do
   defp request_body(%{body_params: params}) when is_map(params), do: {:ok, params}
   defp request_body(_conn), do: {:error, :invalid_json}
 
+  defp room_agent_policy(channel_name) do
+    case ChannelServer.agent_policy(channel_name) do
+      {:ok, policy} -> policy
+      _ -> :called
+    end
+  end
+
+  defp effective_agent_mode(channel_name, token_mode) do
+    AgentToken.effective_mode(token_mode, room_agent_policy(channel_name))
+  end
+
+  defp build_mode_event(effective) do
+    %{"mode" => to_string(effective), "capabilities" => %{
+      "can_post_unsolicited" => effective == :free,
+      "owner_forward_requires_draft" => effective in [:off, :draft],
+      "direct_mentions_auto_post" => effective in [:called, :free]
+    }, "routing" => %{"respond_to" => mode_routes(effective)}}
+  end
+
   defp mode_routes(:off), do: []
   defp mode_routes(:draft), do: ["forward"]
   defp mode_routes(:called), do: ["forward", "mention"]
@@ -277,13 +304,13 @@ defmodule HangoutWeb.AgentController do
     end
   end
 
-  defp sse_loop(conn) do
+  defp sse_loop(conn, channel_name, token_mode) do
     receive do
       {:hangout_event, {:message, _channel, msg}} ->
         event_data = serialize_message(msg)
 
         case chunk(conn, sse_event("message", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -291,7 +318,7 @@ defmodule HangoutWeb.AgentController do
         event_data = %{"body" => "#{participant.nick} joined #{channel}"}
 
         case chunk(conn, sse_event("system", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -299,7 +326,7 @@ defmodule HangoutWeb.AgentController do
         event_data = %{"body" => "#{participant.nick} left #{channel}: #{reason}"}
 
         case chunk(conn, sse_event("system", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -307,7 +334,7 @@ defmodule HangoutWeb.AgentController do
         event_data = %{"body" => "#{participant.nick} quit #{channel}: #{reason}"}
 
         case chunk(conn, sse_event("system", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -315,7 +342,7 @@ defmodule HangoutWeb.AgentController do
         event_data = %{"body" => "#{old} is now known as #{new}"}
 
         case chunk(conn, sse_event("system", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -329,25 +356,31 @@ defmodule HangoutWeb.AgentController do
 
       {:hangout_event, {:mention, mention_data}} ->
         case chunk(conn, sse_event("mention", mention_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
       {:hangout_event, {:forward, forward_data}} ->
         case chunk(conn, sse_event("forward", forward_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
-      {:mode_changed, new_mode} ->
-        event_data = %{"mode" => to_string(new_mode), "capabilities" => %{
-          "can_post_unsolicited" => new_mode == :free,
-          "owner_forward_requires_draft" => new_mode in [:off, :draft],
-          "direct_mentions_auto_post" => new_mode in [:called, :free]
-        }, "routing" => %{"respond_to" => mode_routes(new_mode)}}
+      {:mode_changed, new_owner_mode} ->
+        effective = AgentToken.effective_mode(new_owner_mode, room_agent_policy(channel_name))
+        event_data = build_mode_event(effective)
 
         case chunk(conn, sse_event("mode", event_data)) do
-          {:ok, conn} -> sse_loop(conn)
+          {:ok, conn} -> sse_loop(conn, channel_name, new_owner_mode)
+          {:error, _} -> conn
+        end
+
+      {:hangout_event, {:agent_policy_changed, _channel, _policy}} ->
+        effective = AgentToken.effective_mode(token_mode, room_agent_policy(channel_name))
+        event_data = build_mode_event(effective)
+
+        case chunk(conn, sse_event("mode", event_data)) do
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
@@ -360,7 +393,7 @@ defmodule HangoutWeb.AgentController do
         conn
 
       {:hangout_event, _other} ->
-        sse_loop(conn)
+        sse_loop(conn, channel_name, token_mode)
     end
   end
 end
