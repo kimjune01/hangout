@@ -240,7 +240,7 @@ defmodule HangoutWeb.Layouts do
             flex: 1;
             background: transparent;
             border: none;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
             color: var(--text);
             padding: var(--sp-2) var(--sp-2);
             font-size: 1rem;
