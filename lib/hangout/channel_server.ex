@@ -797,7 +797,8 @@ defmodule Hangout.ChannelServer do
     |> Enum.reject(fn metadata ->
       effective = AgentToken.effective_mode(metadata.mode, state.agent_policy)
       effective in [:off, :draft] or
-        String.downcase(msg.from) == String.downcase(metadata.owner_nick)
+        String.downcase(msg.from) == String.downcase(metadata.owner_nick) or
+        (msg.agent and effective != :unleashed)
     end)
     |> Enum.each(fn metadata ->
       event = {

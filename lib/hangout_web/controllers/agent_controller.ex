@@ -204,7 +204,7 @@ defmodule HangoutWeb.AgentController do
         },
         "capabilities" => %{
           "can_post_unsolicited" => effective in [:free, :unleashed],
-          "owner_forward_requires_draft" => effective in [:off, :draft],
+          "owner_forward_requires_draft" => true,
           "direct_mentions_auto_post" => effective in [:called, :free, :unleashed]
         },
         "routing" => %{
@@ -301,7 +301,7 @@ defmodule HangoutWeb.AgentController do
   defp build_mode_event(effective) do
     %{"mode" => to_string(effective), "capabilities" => %{
       "can_post_unsolicited" => effective in [:free, :unleashed],
-      "owner_forward_requires_draft" => effective in [:off, :draft],
+      "owner_forward_requires_draft" => true,
       "direct_mentions_auto_post" => effective in [:called, :free, :unleashed]
     }, "routing" => %{"respond_to" => mode_routes(effective),
       "agent_to_agent_mentions" => effective == :unleashed}}
@@ -394,6 +394,14 @@ defmodule HangoutWeb.AgentController do
 
         case chunk(conn, sse_event("mode", event_data)) do
           {:ok, conn} -> sse_loop(conn, channel_name, new_owner_mode)
+          {:error, _} -> conn
+        end
+
+      {:hangout_event, {:agent_rate_limit_changed, _channel, new_rate}} ->
+        event_data = %{"limits" => %{"max_messages_per_minute" => new_rate}}
+
+        case chunk(conn, sse_event("settings", event_data)) do
+          {:ok, conn} -> sse_loop(conn, channel_name, token_mode)
           {:error, _} -> conn
         end
 
