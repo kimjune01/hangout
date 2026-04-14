@@ -45,6 +45,7 @@ defmodule Hangout.AgentToken do
       [{^token_hash, metadata}] ->
         :ets.insert(@table, {token_hash, %{metadata | revoked_at: DateTime.utc_now()}})
         Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(token_hash), {:agent_revoked, token_hash})
+        cleanup_token_state(token_hash)
         :ok
 
       [] ->
@@ -62,6 +63,7 @@ defmodule Hangout.AgentToken do
         if same_agent?(metadata, room_id, nick) and active_metadata?(metadata, now) do
           :ets.insert(@table, {hash, %{metadata | revoked_at: now}})
           Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(hash), {:agent_revoked, hash})
+          cleanup_token_state(hash)
           count + 1
         else
           count
@@ -261,6 +263,7 @@ defmodule Hangout.AgentToken do
       fn {hash, metadata}, :ok ->
         if metadata.room_id == room_id do
           Phoenix.PubSub.broadcast(Hangout.PubSub, agent_topic(hash), {:agent_revoked, hash})
+          cleanup_token_state(hash)
           :ets.delete(@table, hash)
         end
         :ok
@@ -271,6 +274,28 @@ defmodule Hangout.AgentToken do
   end
 
   defp channel_topic(room_id), do: "channel:" <> room_id
+
+  defp cleanup_token_state(token_hash) do
+    # Remove dedup entries for this token
+    :ets.foldl(
+      fn
+        {{^token_hash, _} = key, _}, :ok -> :ets.delete(@dedup_table, key); :ok
+        _, :ok -> :ok
+      end,
+      :ok,
+      @dedup_table
+    )
+
+    # Remove rate limit buckets for this token
+    :ets.foldl(
+      fn
+        {{^token_hash, _} = key, _}, :ok -> :ets.delete(@rate_table, key); :ok
+        _, :ok -> :ok
+      end,
+      :ok,
+      @rate_table
+    )
+  end
 
   defp prune_dedup(token_hash) do
     entries =
