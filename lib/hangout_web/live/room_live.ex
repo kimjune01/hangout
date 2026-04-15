@@ -639,7 +639,7 @@ defmodule HangoutWeb.RoomLive do
                     <span class="agent-section-label">Freedom</span>
                     <span class={"agent-active-mode #{if @agent_mode == :unleashed, do: "danger"}"}><%= agent_policy_label(@agent_mode) %></span>
                   </div>
-                  <form phx-change="set_agent_mode"><input type="range" min="0" max="4" value={agent_mode_value(@agent_mode)} name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} aria-label="Agent freedom level" aria-valuetext={agent_policy_label(@agent_mode)} /></form>
+                  <form phx-change="set_agent_mode"><input type="range" min="0" max={agent_mode_value(@room_agent_policy)} value={agent_mode_value(@agent_mode)} name="mode" class={"freedom-slider #{if @agent_mode == :unleashed, do: "unleashed"}"} aria-label="Agent freedom level" aria-valuetext={agent_policy_label(@agent_mode)} /></form>
                   <div class="hint"><%= agent_mode_desc(@agent_mode) %></div>
                 </div>
                 <%= if @agent_token_url do %>
@@ -1079,7 +1079,10 @@ defmodule HangoutWeb.RoomLive do
   end
 
   defp apply_event(socket, {:agent_policy_changed, _channel, policy}) do
-    assign(socket, room_agent_policy: policy)
+    clamped_mode = Hangout.AgentToken.effective_mode(socket.assigns.agent_mode, policy)
+
+    socket
+    |> assign(room_agent_policy: policy, agent_mode: clamped_mode)
   end
 
   defp apply_event(socket, {:agent_rate_limit_changed, _channel, rate}) do
