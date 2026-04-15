@@ -77,6 +77,10 @@ defmodule HangoutWeb.Layouts do
           body {
             font-family: var(--font-ui);
             background: var(--bg);
+            background-image: radial-gradient(ellipse at 20% 80%, #0a1a0a 0%, transparent 50%),
+                              radial-gradient(ellipse at 80% 20%, #0a150f 0%, transparent 50%),
+                              radial-gradient(ellipse at 50% 50%, #0a0a0a 0%, #080808 100%);
+            background-attachment: fixed;
             color: var(--text);
             min-height: 100vh;
             font-size: 16px;
