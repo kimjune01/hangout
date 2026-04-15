@@ -19,8 +19,8 @@ defmodule HangoutWeb.Layouts do
           :root, [data-theme="dark"] {
             color-scheme: dark;
             --bg: #0a0a0a;
-            --panel: #0d1a0d;
-            --panel-2: #142814;
+            --panel: #0e0e0e;
+            --panel-2: #161916;
             --border: #1e4d1e;
             --text: #d0d0d0;
             --muted: #6abf5e;
