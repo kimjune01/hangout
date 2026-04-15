@@ -591,13 +591,17 @@ defmodule HangoutWeb.Layouts do
             position: fixed;
             inset: 0;
             z-index: 99;
+            background: rgba(0, 0, 0, 0);
+            animation: backdrop-in 0.2s ease-out forwards;
           }
+          @keyframes backdrop-in { to { background: rgba(0, 0, 0, 0.5); } }
           .info-modal {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             background: var(--panel);
+            animation: modal-in 0.2s ease-out;
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: var(--sp-4);
@@ -696,6 +700,11 @@ defmodule HangoutWeb.Layouts do
             15% { opacity: 1; transform: translateX(-50%) translateY(0); }
             85% { opacity: 1; transform: translateX(-50%) translateY(0); }
             100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+          }
+
+          @keyframes modal-in {
+            from { opacity: 0; transform: translate(-50%, -48%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
           }
 
           @keyframes fade-in {
