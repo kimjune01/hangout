@@ -93,7 +93,9 @@ defmodule HangoutWeb.RoomLive do
   def handle_event("choose_nick", %{"nick" => nick}, socket) do
     nick = String.trim(nick)
 
-    nick = if nick == "", do: generate_nick(), else: nick
+    if nick == "" do
+      {:noreply, put_flash(socket, :error, "Enter a name to join.")}
+    else
 
     cond do
       not NickRegistry.valid?(nick) ->
@@ -102,6 +104,7 @@ defmodule HangoutWeb.RoomLive do
       true ->
         send(self(), {:complete_join, nick})
         {:noreply, assign(socket, joining?: true)}
+    end
     end
   end
 
