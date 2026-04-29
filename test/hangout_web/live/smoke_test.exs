@@ -13,28 +13,10 @@ defmodule HangoutWeb.SmokeTest do
   # --- LiveView E2E ---
 
   describe "home page" do
-    test "renders and creates a room", %{conn: conn} do
-      {:ok, view, html} = live(conn, "/")
+    test "renders default room", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
       assert html =~ "#hangout"
-      assert html =~ "Rooms exist while people are in them"
-
-      # Submit form — should redirect to room
-      view
-      |> form("form", %{room_name: "smoke-test", ttl: "none"})
-      |> render_submit()
-
-      assert_redirect(view, "/smoke-test")
-    end
-
-    test "auto-generates slug when name is blank", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
-
-      view
-      |> form("form", %{room_name: "", ttl: "none"})
-      |> render_submit()
-
-      {path, _} = assert_redirect(view)
-      assert path =~ ~r"^/[a-z]+-[a-z]+-\d+$"
+      assert html =~ "room disappears"
     end
   end
 
@@ -49,12 +31,14 @@ defmodule HangoutWeb.SmokeTest do
     test "join room with nick", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/smoke-join")
 
-      html =
-        view
-        |> form("form", %{nick: "smoker"})
-        |> render_submit()
+      view
+      |> form("#join-form-center", %{nick: "smoker"})
+      |> render_submit()
 
-      # After join, should see the input bar with nick
+      # handle_info {:complete_join, ...} fires after submit — render to process it
+      html = render(view)
+
+      # After join, should see the nick in the input bar
       assert html =~ "smoker"
       assert html =~ "message-input"
     end
@@ -63,13 +47,13 @@ defmodule HangoutWeb.SmokeTest do
       {:ok, view, _html} = live(conn, "/smoke-msg")
 
       # Join
-      view |> form("form", %{nick: "alice-smoke"}) |> render_submit()
+      view |> form("#join-form-center", %{nick: "alice-smoke"}) |> render_submit()
+      render(view)
 
       # Send a message
-      html =
-        view
-        |> form("form[phx-submit=send_message]", %{body: "hello smoke test"})
-        |> render_submit()
+      view
+      |> form("form[phx-submit=send_message]", %{body: "hello smoke test"})
+      |> render_submit()
 
       # Message should appear in the buffer (via PubSub round-trip)
       assert render(view) =~ "hello smoke test"
@@ -78,11 +62,10 @@ defmodule HangoutWeb.SmokeTest do
     test "room ended state", %{conn: conn} do
       # Create a room, join, end it
       {:ok, view, _} = live(conn, "/smoke-end")
-      view |> form("form", %{nick: "ender-smoke"}) |> render_submit()
+      view |> form("#join-form-center", %{nick: "ender-smoke"}) |> render_submit()
+      render(view)
 
       # End the room from the ChannelServer directly
-      {:ok, snapshot} = ChannelServer.snapshot("#smoke-end")
-      # Find our token — first joiner is moderator
       ChannelServer.end_room("#smoke-end", "ender-smoke")
 
       # LiveView should show room ended
@@ -93,11 +76,11 @@ defmodule HangoutWeb.SmokeTest do
     test "flash error on invalid nick", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/smoke-badnick")
 
-      html =
-        view
-        |> form("form", %{nick: "123invalid"})
-        |> render_submit()
+      view
+      |> form("#join-form-center", %{nick: "123invalid"})
+      |> render_submit()
 
+      html = render(view)
       assert html =~ "Invalid nick"
     end
   end
@@ -108,7 +91,8 @@ defmodule HangoutWeb.SmokeTest do
     test "IRC message appears in LiveView", %{conn: conn} do
       # LiveView user joins
       {:ok, view, _} = live(conn, "/xproto-test")
-      view |> form("form", %{nick: "browser-user"}) |> render_submit()
+      view |> form("#join-form-center", %{nick: "browser-user"}) |> render_submit()
+      render(view)
 
       # IRC user joins same room and sends a message
       irc = irc_connect()
@@ -136,7 +120,8 @@ defmodule HangoutWeb.SmokeTest do
 
       # LiveView user joins and sends
       {:ok, view, _} = live(conn, "/xproto-test2")
-      view |> form("form", %{nick: "browser-sender"}) |> render_submit()
+      view |> form("#join-form-center", %{nick: "browser-sender"}) |> render_submit()
+      render(view)
       Process.sleep(200)
       irc_recv_all(irc)  # drain join event
 

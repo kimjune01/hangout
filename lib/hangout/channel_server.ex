@@ -77,6 +77,8 @@ defmodule Hangout.ChannelServer do
   def voice_leave(name, nick), do: call(name, {:voice_leave, nick})
   def voice_signal(name, from, to, signal), do: call(name, {:voice_signal, from, to, signal})
 
+  def touch(name, nick), do: call(name, {:touch, nick})
+
   def topic_name(channel_name), do: "channel:" <> channel_name
 
   # --- Server Callbacks ---
@@ -199,6 +201,20 @@ defmodule Hangout.ChannelServer do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call({:touch, nick}, _from, state) do
+    case state.members[nick] do
+      nil ->
+        {:reply, :ok, state}
+
+      participant ->
+        now = DateTime.utc_now()
+        participant = %{participant | last_seen_at: now}
+        state = put_member(state, nick, participant)
+        broadcast(state, {:presence_update, state.name, nick, now})
+        {:reply, :ok, state}
     end
   end
 

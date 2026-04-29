@@ -474,6 +474,14 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("heartbeat", _params, socket) do
+    if socket.assigns.joined? do
+      ChannelServer.touch(socket.assigns.channel_name, socket.assigns.nick)
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_event("enable_notifications", _params, socket) do
     {:noreply, assign(socket, notifications_enabled?: true)}
   end
@@ -556,6 +564,7 @@ defmodule HangoutWeb.RoomLive do
     ~H"""
     <div class="container">
       <div id="identity-hook" phx-hook="Identity" style="display:none" data-channel={@channel_slug}></div>
+      <div id="presence-hook" phx-hook="Presence" style="display:none"></div>
 
       <%= if @connection_status in [:room_ended, :room_expired] do %>
         <main class="room-ended">
@@ -675,6 +684,7 @@ defmodule HangoutWeb.RoomLive do
               <div class="member-drawer" phx-window-keydown="close_members" phx-key="Escape">
                 <%= for member <- (if @joined?, do: @participants, else: @room_members) do %>
                   <div class="nick-entry">
+                    <span class={"presence-dot #{presence_status(member)}"}></span>
                     <%= if :o in (member[:modes] || member.modes || []) do %>
                       <span class="op-badge">@</span>
                     <% end %>
@@ -731,7 +741,7 @@ defmodule HangoutWeb.RoomLive do
                     <%= if @room_members != [] do %>
                       <div class="guest-label">Inside now</div>
                       <%= for member <- Enum.take(@room_members, 8) do %>
-                        <span class="guest" style={"color: #{nick_color(member.nick)}"}>{member.nick}</span>
+                        <span class="guest" style={"color: #{nick_color(member.nick)}"}><span class={"presence-dot #{presence_status(member)}"}></span>{member.nick}</span>
                       <% end %>
                       <%= if length(@room_members) > 8 do %>
                         <span class="guest more">+{length(@room_members) - 8} more</span>
@@ -1092,6 +1102,16 @@ defmodule HangoutWeb.RoomLive do
     assign(socket, room_agent_rate_limit: rate)
   end
 
+  defp apply_event(socket, {:presence_update, _channel, nick, ts}) do
+    participants =
+      Enum.map(socket.assigns.participants, fn member ->
+        if member.nick == nick, do: %{member | last_seen_at: ts}, else: member
+      end)
+
+    socket = assign(socket, participants: participants)
+    update_presence_title(socket)
+  end
+
   defp apply_event(socket, _event), do: socket
 
 
@@ -1120,7 +1140,9 @@ defmodule HangoutWeb.RoomLive do
       body: "You joined as #{socket.assigns.nick}"
     }
 
-    assign(socket, messages: append_message(socket.assigns.messages, msg))
+    socket
+    |> assign(messages: append_message(socket.assigns.messages, msg))
+    |> update_presence_title()
   end
 
   defp send_room_message(socket, kind, text, true) do
@@ -1277,6 +1299,27 @@ defmodule HangoutWeb.RoomLive do
     dark = Enum.at(@nick_colors_dark, hash)
     light = Enum.at(@nick_colors_light, hash)
     "light-dark(#{light}, #{dark})"
+  end
+
+  @presence_threshold_seconds 60
+
+  defp presence_status(member) do
+    case member[:last_seen_at] do
+      nil -> "idle"
+      ts -> if DateTime.diff(DateTime.utc_now(), ts) < @presence_threshold_seconds, do: "active", else: "idle"
+    end
+  end
+
+  defp update_presence_title(socket) do
+    if socket.assigns.joined? do
+      own_status =
+        Enum.find(socket.assigns.participants, fn m -> m.nick == socket.assigns.nick end)
+
+      prefix = if own_status && presence_status(own_status) == "active", do: "🟢 ", else: "🟡 "
+      assign(socket, page_title: prefix <> socket.assigns.channel_name)
+    else
+      socket
+    end
   end
 
   defp human_error(:nick_in_use), do: "Nick already in use"

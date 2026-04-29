@@ -737,4 +737,20 @@ const ThemeToggle = {
   },
 };
 
-export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown, AutoFocus, ThemeToggle };
+const Presence = {
+  mounted() {
+    this.interval = setInterval(() => {
+      if (!document.hidden) this.pushEvent("heartbeat", {});
+    }, 30_000);
+    document.addEventListener("visibilitychange", this.onVis = () => {
+      if (!document.hidden) this.pushEvent("heartbeat", {});
+    });
+    this.pushEvent("heartbeat", {});
+  },
+  destroyed() {
+    clearInterval(this.interval);
+    document.removeEventListener("visibilitychange", this.onVis);
+  },
+};
+
+export const Hooks = { Scroll, Notifications, MessageForm, Voice, Identity, TTLCountdown, AutoFocus, ThemeToggle, Presence };
