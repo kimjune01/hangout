@@ -484,7 +484,7 @@ defmodule HangoutWeb.RoomLive do
           if member.nick == socket.assigns.nick, do: %{member | last_seen_at: now}, else: member
         end)
 
-      {:noreply, assign(socket, participants: participants, page_title: "🟢 " <> socket.assigns.channel_name)}
+      {:noreply, assign(socket, participants: participants, page_title: presence_emoji("active") <> socket.assigns.channel_name)}
     else
       {:noreply, socket}
     end
@@ -492,7 +492,7 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("tab_hidden", _params, socket) do
     if socket.assigns.joined? do
-      {:noreply, assign(socket, page_title: "🟡 " <> socket.assigns.channel_name)}
+      {:noreply, assign(socket, page_title: presence_emoji("idle") <> socket.assigns.channel_name)}
     else
       {:noreply, socket}
     end
@@ -1333,12 +1333,16 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
+  defp presence_emoji("active"), do: "🟢 "
+  defp presence_emoji("idle"), do: "🟡 "
+  defp presence_emoji(_), do: "⚪ "
+
   defp update_presence_title(socket) do
     if socket.assigns.joined? do
-      own_status =
+      own =
         Enum.find(socket.assigns.participants, fn m -> m.nick == socket.assigns.nick end)
 
-      prefix = if own_status && presence_status(own_status) == "active", do: "🟢 ", else: "🟡 "
+      prefix = presence_emoji(if(own, do: presence_status(own), else: "pending"))
       assign(socket, page_title: prefix <> socket.assigns.channel_name)
     else
       socket
