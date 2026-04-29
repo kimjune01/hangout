@@ -211,8 +211,8 @@ defmodule HangoutWeb.Layouts do
           .nick-entry { padding: 3px 0; font-size: 0.875rem; display: flex; align-items: center; gap: 0.25rem; }
           .nick-entry .bot-badge { font-size: 0.6875rem; color: var(--muted); font-family: var(--font-mono); }
           .nick-entry .op-badge { color: var(--accent-2); font-family: var(--font-mono); }
-          .presence-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-          .presence-dot.active { background: #4ade80; }
+          .presence-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: #71717a; opacity: 0.5; }
+          .presence-dot.active { background: #4ade80; opacity: 1; }
           .presence-dot.idle { background: #facc15; opacity: 0.6; }
           .guest .presence-dot { width: 5px; height: 5px; }
 

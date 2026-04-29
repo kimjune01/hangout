@@ -1317,12 +1317,19 @@ defmodule HangoutWeb.RoomLive do
     "light-dark(#{light}, #{dark})"
   end
 
-  @presence_threshold_seconds 60
+  @presence_active_seconds 60
+  @presence_idle_seconds 300
 
   defp presence_status(member) do
     case member[:last_seen_at] do
-      nil -> "idle"
-      ts -> if DateTime.diff(DateTime.utc_now(), ts) < @presence_threshold_seconds, do: "active", else: "idle"
+      nil -> "pending"
+      ts ->
+        age = DateTime.diff(DateTime.utc_now(), ts)
+        cond do
+          age < @presence_active_seconds -> "active"
+          age < @presence_idle_seconds -> "pending"
+          true -> "idle"
+        end
     end
   end
 
