@@ -477,9 +477,17 @@ defmodule HangoutWeb.RoomLive do
   def handle_event("heartbeat", _params, socket) do
     if socket.assigns.joined? do
       ChannelServer.touch(socket.assigns.channel_name, socket.assigns.nick)
-    end
+      now = DateTime.utc_now()
 
-    {:noreply, socket}
+      participants =
+        Enum.map(socket.assigns.participants, fn member ->
+          if member.nick == socket.assigns.nick, do: %{member | last_seen_at: now}, else: member
+        end)
+
+      {:noreply, assign(socket, participants: participants, page_title: "🟢 " <> socket.assigns.channel_name)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("tab_hidden", _params, socket) do
