@@ -482,6 +482,14 @@ defmodule HangoutWeb.RoomLive do
     {:noreply, socket}
   end
 
+  def handle_event("tab_hidden", _params, socket) do
+    if socket.assigns.joined? do
+      {:noreply, assign(socket, page_title: "🟡 " <> socket.assigns.channel_name)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("enable_notifications", _params, socket) do
     {:noreply, assign(socket, notifications_enabled?: true)}
   end

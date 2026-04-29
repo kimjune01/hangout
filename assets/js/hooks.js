@@ -744,6 +744,7 @@ const Presence = {
     }, 30_000);
     document.addEventListener("visibilitychange", this.onVis = () => {
       if (!document.hidden) this.pushEvent("heartbeat", {});
+      else this.pushEvent("tab_hidden", {});
     });
     this.pushEvent("heartbeat", {});
   },
