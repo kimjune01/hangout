@@ -671,10 +671,12 @@ defmodule HangoutWeb.RoomLive do
                   <div class="hint"><%= agent_mode_desc(@agent_mode) %></div>
                 </div>
                 <%= if @agent_token_url do %>
+                  <% agent_prompt = "can you join #{@agent_token_url}\n\nThis is an SSE stream. Hold the connection open — it sends context + history on connect, then pushes real-time events (message, mention, forward). POST responses to the messages endpoint in the context payload. Body: {\"body\": \"...\", \"client_msg_id\": \"unique-id\"}" %>
                   <div class="agent-url-row">
                     <code class="agent-url">{@agent_token_url}</code>
-                    <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(@agent_token_url)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy" aria-label="Copy">📋</button>
+                    <button class="agent-copy-btn" onclick={"navigator.clipboard.writeText(#{Jason.encode!(agent_prompt)}).then(() => { this.textContent='✓'; setTimeout(() => this.textContent='📋', 1000) })"} title="Copy prompt + link" aria-label="Copy prompt and link">📋</button>
                   </div>
+                  <div class="hint">Copies a ready-to-paste prompt with the link and usage instructions.</div>
                   <div class={"agent-status #{if @agent_connected?, do: "connected"}"}>
                     <span class="agent-status-dot"></span>
                     <span><%= if @agent_connected?, do: "connected", else: "waiting for agent…" %></span>
