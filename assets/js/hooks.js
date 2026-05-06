@@ -495,6 +495,23 @@ const MessageForm = {
       }
     });
 
+    // Favicon mirrors server-side presence state. Chrome doesn't reliably
+    // render colored emoji in document.title; SVG favicons render everywhere.
+    const favicon = document.getElementById("favicon");
+    const baseFavicon = favicon ? favicon.href : null;
+    const PRESENCE_COLORS = { active: "#39ff14", idle: "#f5c518", pending: "#cccccc" };
+    this.handleEvent("hangout:presence", ({ state }) => {
+      if (!favicon) return;
+      if (state === "none") {
+        if (baseFavicon) favicon.href = baseFavicon;
+        return;
+      }
+      const color = PRESENCE_COLORS[state] || PRESENCE_COLORS.pending;
+      favicon.href = `data:image/svg+xml;utf8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="${color}"/></svg>`
+      )}`;
+    });
+
     // Notification events
     this.handleEvent("hangout:ask_notifications", () => {
       if (!("Notification" in window)) return;

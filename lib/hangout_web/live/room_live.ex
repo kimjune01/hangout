@@ -58,6 +58,7 @@ defmodule HangoutWeb.RoomLive do
         send_error: nil,
         info_open?: false,
         joining?: false,
+        tab_hidden?: false,
         agent_connected?: false,
         agent_token: nil,
         agent_token_url: nil,
@@ -484,7 +485,10 @@ defmodule HangoutWeb.RoomLive do
           if member.nick == socket.assigns.nick, do: %{member | last_seen_at: now}, else: member
         end)
 
-      {:noreply, assign(socket, participants: participants, page_title: presence_emoji("active") <> socket.assigns.channel_name)}
+      {:noreply,
+       socket
+       |> assign(participants: participants, tab_hidden?: false, page_title: presence_emoji("active") <> socket.assigns.channel_name)
+       |> push_event("hangout:presence", %{state: "active"})}
     else
       {:noreply, socket}
     end
@@ -492,7 +496,10 @@ defmodule HangoutWeb.RoomLive do
 
   def handle_event("tab_hidden", _params, socket) do
     if socket.assigns.joined? do
-      {:noreply, assign(socket, page_title: presence_emoji("idle") <> socket.assigns.channel_name)}
+      {:noreply,
+       socket
+       |> assign(tab_hidden?: true, page_title: presence_emoji("idle") <> socket.assigns.channel_name)
+       |> push_event("hangout:presence", %{state: "idle"})}
     else
       {:noreply, socket}
     end
@@ -1002,6 +1009,7 @@ defmodule HangoutWeb.RoomLive do
       Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(socket.assigns.channel_name))
       assign(socket, joined?: false, connection_status: :kicked)
       |> put_flash(:error, "You were kicked: #{reason}")
+      |> push_event("hangout:presence", %{state: "none"})
     else
       socket
     end
@@ -1044,13 +1052,17 @@ defmodule HangoutWeb.RoomLive do
   defp apply_event(socket, {:room_ended, _channel, _actor}) do
     if socket.assigns.nick, do: NickRegistry.unregister(socket.assigns.nick)
     Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(socket.assigns.channel_name))
-    assign(socket, joined?: false, participants: [], connection_status: :room_ended)
+    socket
+    |> assign(joined?: false, participants: [], connection_status: :room_ended)
+    |> push_event("hangout:presence", %{state: "none"})
   end
 
   defp apply_event(socket, {:room_expired, _channel}) do
     if socket.assigns.nick, do: NickRegistry.unregister(socket.assigns.nick)
     Phoenix.PubSub.unsubscribe(Hangout.PubSub, ChannelServer.topic_name(socket.assigns.channel_name))
-    assign(socket, joined?: false, participants: [], connection_status: :room_expired)
+    socket
+    |> assign(joined?: false, participants: [], connection_status: :room_expired)
+    |> push_event("hangout:presence", %{state: "none"})
   end
 
   defp apply_event(socket, {:ttl_changed, _channel, expires_at}) do
@@ -1344,8 +1356,13 @@ defmodule HangoutWeb.RoomLive do
       own =
         Enum.find(socket.assigns.participants, fn m -> m.nick == socket.assigns.nick end)
 
-      prefix = presence_emoji(if(own, do: presence_status(own), else: "pending"))
-      assign(socket, page_title: prefix <> socket.assigns.channel_name)
+      base_state = if own, do: presence_status(own), else: "pending"
+      state = if socket.assigns.tab_hidden? and base_state == "active", do: "idle", else: base_state
+      prefix = presence_emoji(state)
+
+      socket
+      |> assign(page_title: prefix <> socket.assigns.channel_name)
+      |> push_event("hangout:presence", %{state: state})
     else
       socket
     end
