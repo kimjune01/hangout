@@ -487,7 +487,7 @@ defmodule HangoutWeb.RoomLive do
 
       {:noreply,
        socket
-       |> assign(participants: participants, tab_hidden?: false, page_title: presence_emoji("active") <> socket.assigns.channel_name)
+       |> assign(participants: participants, tab_hidden?: false, page_title: socket.assigns.channel_name)
        |> push_event("hangout:presence", %{state: "active"})}
     else
       {:noreply, socket}
@@ -498,7 +498,7 @@ defmodule HangoutWeb.RoomLive do
     if socket.assigns.joined? do
       {:noreply,
        socket
-       |> assign(tab_hidden?: true, page_title: presence_emoji("idle") <> socket.assigns.channel_name)
+       |> assign(tab_hidden?: true, page_title: socket.assigns.channel_name)
        |> push_event("hangout:presence", %{state: "idle"})}
     else
       {:noreply, socket}
@@ -1347,10 +1347,6 @@ defmodule HangoutWeb.RoomLive do
     end
   end
 
-  defp presence_emoji("active"), do: "🟢 "
-  defp presence_emoji("idle"), do: "🟡 "
-  defp presence_emoji(_), do: "⚪ "
-
   defp update_presence_title(socket) do
     if socket.assigns.joined? do
       own =
@@ -1358,10 +1354,9 @@ defmodule HangoutWeb.RoomLive do
 
       base_state = if own, do: presence_status(own), else: "pending"
       state = if socket.assigns.tab_hidden? and base_state == "active", do: "idle", else: base_state
-      prefix = presence_emoji(state)
 
       socket
-      |> assign(page_title: prefix <> socket.assigns.channel_name)
+      |> assign(page_title: socket.assigns.channel_name)
       |> push_event("hangout:presence", %{state: state})
     else
       socket
